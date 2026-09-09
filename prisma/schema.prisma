@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id         String      @id @default(cuid())
+  name       String
+  whatsapp   String
+  createdAt  DateTime    @default(now())
+  containers Container[]
+}
+
+model Driver {
+  id         String      @id @default(cuid())
+  name       String
+  phone      String
+  createdAt  DateTime    @default(now())
+  containers Container[]
+  positions  Position[]
+}
+
+model Geofence {
+  id        String   @id @default(cuid())
+  name      String
+  latitude  Float
+  longitude Float
+  radiusM   Int      @default(300)
+  status    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  events    GeofenceEvent[]
+}
+
+model Container {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  status     String   @default("EM_TRANSITO")
+  origin     String?
+  destination String?
+  clientId   String
+  driverId   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  client        Client          @relation(fields: [clientId], references: [id])
+  driver        Driver?         @relation(fields: [driverId], references: [id])
+  events        GeofenceEvent[]
+  notifications Notification[]
+}
+
+model Position {
+  id          String   @id @default(cuid())
+  driverId    String
+  containerId String?
+  latitude    Float
+  longitude   Float
+  accuracyM   Float?
+  recordedAt  DateTime @default(now())
+
+  driver Driver @relation(fields: [driverId], references: [id])
+
+  @@index([driverId, recordedAt])
+}
+
+model GeofenceEvent {
+  id          String   @id @default(cuid())
+  geofenceId  String
+  containerId String
+  type        String
+  latitude    Float
+  longitude   Float
+  createdAt   DateTime @default(now())
+
+  geofence  Geofence  @relation(fields: [geofenceId], references: [id])
+  container Container @relation(fields: [containerId], references: [id])
+
+  @@index([geofenceId, containerId, createdAt])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  containerId String
+  to          String
+  body        String
+  channel     String   @default("whatsapp")
+  provider    String
+  status      String
+  error       String?
+  providerRef String?
+  createdAt   DateTime @default(now())
+
+  container Container @relation(fields: [containerId], references: [id])
+}
