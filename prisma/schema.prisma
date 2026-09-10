@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -11,6 +11,7 @@ model Client {
   id         String      @id @default(cuid())
   name       String
   whatsapp   String
+  consent    Boolean     @default(false)
   createdAt  DateTime    @default(now())
   containers Container[]
 }
@@ -19,6 +20,7 @@ model Driver {
   id         String      @id @default(cuid())
   name       String
   phone      String
+  plate      String      @default("")
   createdAt  DateTime    @default(now())
   containers Container[]
   positions  Position[]
@@ -44,6 +46,9 @@ model Container {
   destination String?
   clientId   String
   driverId   String?
+  geofenceId String?
+  trackingTokenHash String? @unique
+  trackingExpiresAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -80,6 +85,7 @@ model GeofenceEvent {
   container Container @relation(fields: [containerId], references: [id])
 
   @@index([geofenceId, containerId, createdAt])
+  @@unique([geofenceId, containerId, type])
 }
 
 model Notification {
@@ -92,7 +98,16 @@ model Notification {
   status      String
   error       String?
   providerRef String?
+  parameters  String       @default("[]")
+  attempts    Int          @default(0)
+  updatedAt   DateTime     @updatedAt
   createdAt   DateTime @default(now())
 
   container Container @relation(fields: [containerId], references: [id])
+}
+
+model LoginAttempt {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime
 }

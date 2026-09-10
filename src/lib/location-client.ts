@@ -7,6 +7,7 @@ export type Fix = {
   latitude: number;
   longitude: number;
   accuracyM?: number;
+  recordedAt: string;
 };
 
 export type WatchHandle = { clear: () => void };
@@ -37,6 +38,7 @@ export async function watchPosition(
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracyM: position.coords.accuracy,
+          recordedAt: new Date(position.timestamp).toISOString(),
         });
       },
     );
@@ -55,6 +57,7 @@ export async function watchPosition(
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracyM: position.coords.accuracy,
+        recordedAt: new Date(position.timestamp).toISOString(),
       }),
     (error) => onError(error.message),
     { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 },

@@ -7,7 +7,7 @@ export async function GET() {
   const notifications = await prisma.notification.findMany({
     orderBy: { createdAt: "desc" },
     take: 50,
-    include: { container: true },
+    include: { container: { select: { code: true } } },
   });
   return NextResponse.json(notifications);
 }

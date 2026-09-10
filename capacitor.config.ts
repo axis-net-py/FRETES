@@ -1,22 +1,11 @@
 import type { CapacitorConfig } from "@capacitor/cli";
-
-/**
- * O app nativo carrega a mesma aplicação Next.js servida pelo backend.
- * Defina CAPACITOR_SERVER_URL com a URL pública (https) antes de rodar
- * `npx cap sync`.
- */
-const serverUrl = process.env.CAPACITOR_SERVER_URL;
-
+const url = process.env.CAPACITOR_SERVER_URL;
+if (url && !url.startsWith("https://"))
+  throw new Error("CAPACITOR_SERVER_URL must use HTTPS.");
 const config: CapacitorConfig = {
-  appId: "com.containertrack.app",
-  appName: "Container Track",
-  webDir: "public",
-  ...(serverUrl ? { server: { url: serverUrl, cleartext: false } } : {}),
-  plugins: {
-    Geolocation: {
-      permissions: ["location"],
-    },
-  },
+  appId: "py.axisnet.fretes",
+  appName: "AXIS Fretes",
+  webDir: "mobile-shell",
+  ...(url ? { server: { url, cleartext: false } } : {}),
 };
-
 export default config;

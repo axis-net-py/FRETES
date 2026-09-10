@@ -1,17 +1,1 @@
-{
-  "name": "Container Track",
-  "short_name": "ContainerTrack",
-  "description": "Controle de frete de container com alerta automático no WhatsApp",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ]
-}
+{"name":"AXIS Fretes","short_name":"AXIS Fretes","description":"Gestão de fretes de containers","start_url":"/","display":"standalone","background_color":"#f7f9f7","theme_color":"#204f40","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}

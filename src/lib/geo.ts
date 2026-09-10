@@ -16,6 +16,10 @@ export function distanceMeters(a: Point, b: Point): number {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
 }
 
-export function isInside(point: Point, center: Point, radiusM: number): boolean {
+export function isInside(
+  point: Point,
+  center: Point,
+  radiusM: number,
+): boolean {
   return distanceMeters(point, center) <= radiusM;
 }

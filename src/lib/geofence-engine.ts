@@ -1,118 +1,91 @@
-import { distanceMeters } from "./geo";
-import { notifyStatusChange } from "./notifications";
+import { Prisma } from "@prisma/client";
+import { reliableInside } from "./geofence-policy";
 import { prisma } from "./prisma";
-import { ContainerStatus, isContainerStatus } from "./status";
+import { dispatchNotification } from "./notifications";
 
 export type PositionInput = {
   driverId: string;
-  containerId?: string;
+  containerId: string;
   latitude: number;
   longitude: number;
-  accuracyM?: number;
+  accuracyM: number;
+  recordedAt: string;
 };
-
-export type GeofenceTrigger = {
-  geofenceId: string;
-  geofenceName: string;
-  containerId: string;
-  containerCode: string;
-  status: ContainerStatus;
-  notified: boolean;
-};
-
-function exitBufferMeters(): number {
-  const parsed = Number(process.env.GEOFENCE_EXIT_BUFFER_M);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 100;
-}
-
-async function containersForPosition(input: PositionInput) {
-  return prisma.container.findMany({
-    where: input.containerId
-      ? { id: input.containerId }
-      : { driverId: input.driverId, status: { not: "ENTREGUE" } },
+export async function processPosition(input: PositionInput) {
+  const container = await prisma.container.findFirst({
+    where: { id: input.containerId, driverId: input.driverId },
     include: { client: true },
   });
-}
-
-export async function processPosition(input: PositionInput): Promise<GeofenceTrigger[]> {
+  if (!container) throw new Error("Frete não vinculado ao motorista");
+  if (container.status !== "EM_TRANSITO") return [];
+  const gate = container.geofenceId
+    ? await prisma.geofence.findUnique({ where: { id: container.geofenceId } })
+    : null;
+  if (!gate?.active) return [];
+  const age = Date.now() - new Date(input.recordedAt).getTime();
+  if (!Number.isFinite(age) || age > 120000 || age < -30000) return [];
   await prisma.position.create({
-    data: {
-      driverId: input.driverId,
-      containerId: input.containerId,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracyM: input.accuracyM,
-    },
+    data: { ...input, recordedAt: new Date(input.recordedAt) },
   });
-
-  const [geofences, containers] = await Promise.all([
-    prisma.geofence.findMany({ where: { active: true } }),
-    containersForPosition(input),
-  ]);
-
-  const triggers: GeofenceTrigger[] = [];
-
-  for (const geofence of geofences) {
-    const distance = distanceMeters(input, geofence);
-    const inside = distance <= geofence.radiusM;
-    const outside = distance > geofence.radiusM + exitBufferMeters();
-    if (!inside && !outside) continue;
-
-    for (const container of containers) {
-      const lastEvent = await prisma.geofenceEvent.findFirst({
-        where: { geofenceId: geofence.id, containerId: container.id },
-        orderBy: { createdAt: "desc" },
-      });
-
-      if (inside) {
-        if (lastEvent?.type === "ENTER") continue;
-
-        await prisma.geofenceEvent.create({
+  if (!reliableInside(input, gate)) return [];
+  let notificationId: string | undefined;
+  try {
+    notificationId = await prisma.$transaction(
+      async (tx) => {
+        // Compare-and-set prevents concurrent fixes from triggering duplicate messages.
+        const claimed = await tx.container.updateMany({
+          where: { id: container.id, status: "EM_TRANSITO" },
+          data: { status: "CHEGADA_PORTAO" },
+        });
+        if (!claimed.count) return undefined;
+        await tx.geofenceEvent.create({
           data: {
-            geofenceId: geofence.id,
+            geofenceId: gate.id,
             containerId: container.id,
             type: "ENTER",
             latitude: input.latitude,
             longitude: input.longitude,
           },
         });
-
-        const status = isContainerStatus(geofence.status) ? geofence.status : "CHEGADA_PORTAO";
-
-        if (container.status !== status) {
-          await prisma.container.update({ where: { id: container.id }, data: { status } });
-        }
-
-        const notification = await notifyStatusChange({
-          containerId: container.id,
-          containerCode: container.code,
-          status,
-          clientName: container.client.name,
-          clientWhatsapp: container.client.whatsapp,
-          location: geofence.name,
-        });
-
-        triggers.push({
-          geofenceId: geofence.id,
-          geofenceName: geofence.name,
-          containerId: container.id,
-          containerCode: container.code,
-          status,
-          notified: notification.status === "SENT",
-        });
-      } else if (lastEvent?.type === "ENTER") {
-        await prisma.geofenceEvent.create({
+        const parameters = [
+          container.client.name,
+          container.code,
+          "Chegou ao portão de liberação",
+          gate.name,
+        ];
+        const n = await tx.notification.create({
           data: {
-            geofenceId: geofence.id,
             containerId: container.id,
-            type: "EXIT",
-            latitude: input.latitude,
-            longitude: input.longitude,
+            to: container.client.whatsapp,
+            body: `Olá ${parameters[0]}, seu container ${parameters[1]} chegou ao portão de liberação em ${parameters[3]}.`,
+            parameters: JSON.stringify(parameters),
+            provider: process.env.WHATSAPP_PROVIDER || "disabled",
+            status: container.client.consent ? "PENDING" : "NO_CONSENT",
+            error: container.client.consent
+              ? null
+              : "Cliente não autorizou avisos por WhatsApp.",
           },
         });
-      }
-    }
+        return n.id;
+      },
+      { maxWait: 10000, timeout: 15000 },
+    );
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
+      return [];
+    throw e;
   }
-
-  return triggers;
+  if (!notificationId) return [];
+  const result = await dispatchNotification(notificationId);
+  return [
+    {
+      geofenceId: gate.id,
+      geofenceName: gate.name,
+      containerId: container.id,
+      containerCode: container.code,
+      status: "CHEGADA_PORTAO",
+      notified: result?.status === "ACCEPTED",
+      notificationStatus: result?.status,
+    },
+  ];
 }

@@ -1,175 +1,257 @@
 "use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Fix, WatchHandle, watchPosition } from "@/lib/location-client";
+import { useEffect, useRef, useState } from "react";
+import {
+  Truck,
+  MapPin,
+  NavigationArrow,
+  Stop,
+  Play,
+  ArrowLeft,
+} from "@phosphor-icons/react";
+import Link from "next/link";
+import { watchPosition, WatchHandle } from "@/lib/location-client";
 import { STATUS_LABELS, ContainerStatus } from "@/lib/status";
-
-type Driver = { id: string; name: string };
-type Container = { id: string; code: string; driverId: string | null; status: string };
-type Trigger = { geofenceName: string; containerCode: string; status: string; notified: boolean };
-
-const MIN_INTERVAL_MS = 15000;
-
-export default function DriverPage() {
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [containers, setContainers] = useState<Container[]>([]);
-  const [driverId, setDriverId] = useState("");
-  const [containerId, setContainerId] = useState("");
-  const [tracking, setTracking] = useState(false);
-  const [fix, setFix] = useState<Fix | null>(null);
-  const [log, setLog] = useState<string[]>([]);
+type Trip = {
+  id: string;
+  code: string;
+  driver: string;
+  origin: string;
+  destination: string;
+  status: string;
+  gate: { name: string; radiusM: number } | null;
+};
+export default function Driver() {
+  const [trip, setTrip] = useState<Trip | null>(null);
   const [error, setError] = useState("");
-
-  const watchRef = useRef<WatchHandle | null>(null);
-  const lastSentRef = useRef(0);
-
+  const [active, setActive] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [last, setLast] = useState("");
+  const [accuracy, setAccuracy] = useState<number>();
+  const [token, setToken] = useState("");
+  const handle = useRef<WatchHandle | null>(null);
+  const alive = useRef(true);
+  const lastSent = useRef(0);
+  const sending = useRef(false);
+  const generation = useRef(0);
   useEffect(() => {
-    Promise.all([
-      fetch("/api/drivers").then((res) => res.json()),
-      fetch("/api/containers").then((res) => res.json()),
-    ])
-      .then(([driverList, containerList]) => {
-        setDrivers(driverList);
-        setContainers(containerList);
-      })
-      .catch(() => setError("Não foi possível carregar motoristas e containers"));
+    const generationRef = generation;
+    alive.current = true;
+    const t =
+      new URLSearchParams(location.hash.slice(1)).get("token") ||
+      sessionStorage.getItem("fretes-driver-token") ||
+      "";
+    if (t) {
+      sessionStorage.setItem("fretes-driver-token", t);
+      history.replaceState(null, "", location.pathname);
+      setToken(t);
+      fetch("/api/tracking", { headers: { Authorization: "Bearer " + t } })
+        .then(async (r) => {
+          const p = await r.json();
+          if (!r.ok) throw new Error(p.error);
+          if (alive.current) setTrip(p);
+        })
+        .catch((e) => {
+          if (alive.current) setError(e.message);
+        });
+    } else
+      setError(
+        "Abra o link privado de rastreamento fornecido pela transportadora.",
+      );
+    return () => {
+      alive.current = false;
+      generationRef.current++;
+      handle.current?.clear();
+    };
   }, []);
-
-  const pushLog = useCallback((line: string) => {
-    setLog((current) => [`${new Date().toLocaleTimeString("pt-BR")} · ${line}`, ...current].slice(0, 20));
-  }, []);
-
-  const sendFix = useCallback(
-    async (position: Fix) => {
-      const response = await fetch("/api/positions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driverId, containerId: containerId || undefined, ...position }),
-      });
-
-      if (!response.ok) {
-        pushLog("Falha ao enviar posição");
+  function stop() {
+    generation.current++;
+    handle.current?.clear();
+    handle.current = null;
+    setActive(false);
+    setStarting(false);
+  }
+  async function start() {
+    if (!consent) return;
+    setStarting(true);
+    setError("");
+    const current = ++generation.current;
+    try {
+      const h = await watchPosition(
+        async (fix) => {
+          if (
+            !alive.current ||
+            generation.current !== current ||
+            sending.current ||
+            Date.now() - lastSent.current < 15000
+          )
+            return;
+          sending.current = true;
+          lastSent.current = Date.now();
+          setAccuracy(fix.accuracyM);
+          try {
+            const r = await fetch("/api/positions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify(fix),
+            });
+            const p = await r.json();
+            if (!r.ok)
+              throw new Error(p.error || "Não foi possível enviar a posição.");
+            if (!alive.current) return;
+            setError("");
+            setLast(new Date().toLocaleTimeString("pt-BR"));
+            if (p.triggers?.length) {
+              setTrip((t) => (t ? { ...t, status: "CHEGADA_PORTAO" } : t));
+              stop();
+            }
+          } catch (e) {
+            if (alive.current)
+              setError(
+                e instanceof Error
+                  ? e.message
+                  : "Falha de conexão. Nova tentativa na próxima posição.",
+              );
+          } finally {
+            sending.current = false;
+          }
+        },
+        (message) => {
+          if (alive.current) {
+            setError(message);
+            stop();
+          }
+        },
+      );
+      if (!alive.current || generation.current !== current) {
+        h.clear();
         return;
       }
-
-      const data = (await response.json()) as { triggers: Trigger[] };
-      for (const trigger of data.triggers) {
-        pushLog(
-          `${trigger.containerCode} entrou em ${trigger.geofenceName} → ${
-            STATUS_LABELS[trigger.status as ContainerStatus] ?? trigger.status
-          } · WhatsApp ${trigger.notified ? "enviado" : "falhou"}`,
-        );
-      }
-    },
-    [containerId, driverId, pushLog],
-  );
-
-  const stop = useCallback(() => {
-    watchRef.current?.clear();
-    watchRef.current = null;
-    setTracking(false);
-  }, []);
-
-  const start = useCallback(async () => {
-    if (!driverId) {
-      setError("Selecione o motorista");
-      return;
+      handle.current = h;
+      setActive(true);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível ativar o GPS.",
+      );
+    } finally {
+      if (alive.current) setStarting(false);
     }
-    setError("");
-    setTracking(true);
-    pushLog("Rastreamento iniciado");
-
-    watchRef.current = await watchPosition(
-      (position) => {
-        setFix(position);
-        const now = Date.now();
-        if (now - lastSentRef.current < MIN_INTERVAL_MS) return;
-        lastSentRef.current = now;
-        void sendFix(position);
-      },
-      (message) => {
-        setError(message);
-        stop();
-      },
-    );
-  }, [driverId, pushLog, sendFix, stop]);
-
-  useEffect(() => () => watchRef.current?.clear(), []);
-
-  const driverContainers = containers.filter(
-    (container) => !driverId || container.driverId === driverId,
-  );
-
+  }
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Modo motorista</h1>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-1 text-sm">
-          <span className="text-slate-300">Motorista</span>
-          <select
-            className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
-            value={driverId}
-            onChange={(event) => setDriverId(event.target.value)}
-            disabled={tracking}
-          >
-            <option value="">Selecione…</option>
-            {drivers.map((driver) => (
-              <option key={driver.id} value={driver.id}>
-                {driver.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-1 text-sm">
-          <span className="text-slate-300">Container (opcional)</span>
-          <select
-            className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2"
-            value={containerId}
-            onChange={(event) => setContainerId(event.target.value)}
-            disabled={tracking}
-          >
-            <option value="">Todos do motorista</option>
-            {driverContainers.map((container) => (
-              <option key={container.id} value={container.id}>
-                {container.code}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      <button
-        type="button"
-        onClick={tracking ? stop : start}
-        className={`rounded px-4 py-2 font-medium ${
-          tracking ? "bg-red-600 hover:bg-red-500" : "bg-sky-600 hover:bg-sky-500"
-        }`}
-      >
-        {tracking ? "Parar rastreamento" : "Iniciar rastreamento"}
-      </button>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
-
-      {fix && (
-        <p className="text-sm text-slate-300">
-          Última posição: {fix.latitude.toFixed(6)}, {fix.longitude.toFixed(6)}
-          {fix.accuracyM ? ` (±${Math.round(fix.accuracyM)} m)` : ""}
+    <main className="driver-page">
+      <Link href="/login" className="brand">
+        <span className="brand-mark">
+          <Truck size={24} />
+        </span>
+        AXIS / fretes
+      </Link>
+      <section className="panel driver-card">
+        <div className="eyebrow">ÁREA DO MOTORISTA</div>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Seu próximo destino.
+        </h1>
+        <p className="text-slate-500 text-sm mt-2">
+          {trip
+            ? "Olá, " + trip.driver + ". Acompanhe seu frete."
+            : "Acesso individual e seguro ao rastreamento."}
         </p>
-      )}
-
-      <section>
-        <h2 className="mb-2 text-lg font-semibold">Eventos</h2>
-        <ul className="space-y-1 text-sm text-slate-300">
-          {log.length === 0 ? <li className="text-slate-500">Sem eventos ainda.</li> : null}
-          {log.map((line) => (
-            <li key={line} className="rounded border border-slate-800 px-3 py-1">
-              {line}
-            </li>
-          ))}
-        </ul>
+        {trip && (
+          <>
+            <div className="bg-slate-50 rounded-lg p-4 my-6">
+              <b className="text-lg">{trip.code}</b>
+              <p className="text-sm mt-2">
+                {trip.origin} → {trip.destination}
+              </p>
+              <p className="text-xs text-emerald-700 mt-3">
+                {STATUS_LABELS[trip.status as ContainerStatus]}
+              </p>
+            </div>
+            <div className={"tracking-orb " + (active ? "running" : "")}>
+              <span>
+                <NavigationArrow
+                  size={42}
+                  weight={active ? "fill" : "regular"}
+                />
+              </span>
+            </div>
+            <h2 className="text-center">
+              {active
+                ? "GPS ativo"
+                : trip.status === "CHEGADA_PORTAO"
+                  ? "Chegada registrada"
+                  : "Pronto para iniciar"}
+            </h2>
+            <p className="text-center text-xs text-slate-400 mt-2">
+              {last
+                ? "Última posição enviada às " + last
+                : "A localização só é compartilhada após sua autorização."}
+              {accuracy !== undefined &&
+                " · precisão " + Math.round(accuracy) + " m"}
+            </p>
+            <div className="flex items-start gap-3 border-y border-slate-100 my-6 py-4">
+              <MapPin size={22} />
+              <div>
+                <b className="text-sm">
+                  {trip.gate?.name || "Portão não configurado"}
+                </b>
+                <p className="text-xs text-slate-500">
+                  {trip.gate?.radiusM} m de raio para identificar sua chegada.
+                </p>
+              </div>
+            </div>
+            <label className="flex gap-3 items-start mb-5">
+              <input
+                type="checkbox"
+                checked={consent}
+                disabled={active}
+                onChange={(e) => setConsent(e.target.checked)}
+              />
+              <span className="text-xs text-slate-500">
+                Autorizo compartilhar minha localização com a transportadora
+                durante este frete para registrar a chegada ao portão.
+              </span>
+            </label>
+            {active ? (
+              <button
+                className="btn secondary w-full justify-center"
+                onClick={stop}
+              >
+                <Stop size={18} />
+                Parar rastreamento
+              </button>
+            ) : (
+              <button
+                className="btn primary w-full justify-center"
+                disabled={!consent || starting || trip.status !== "EM_TRANSITO"}
+                onClick={start}
+              >
+                <Play size={18} />
+                {starting ? "Solicitando GPS…" : "Iniciar rastreamento"}
+              </button>
+            )}
+            <p className="feedback">
+              No navegador, mantenha esta página aberta e a tela ligada. O
+              rastreamento pode ser interrompido ao bloquear o celular ou trocar
+              de aplicativo.
+            </p>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="feedback">
+            {error}
+          </p>
+        )}
       </section>
-    </div>
+      <Link
+        href="/login"
+        className="flex items-center gap-2 text-xs text-slate-400 mt-6"
+      >
+        <ArrowLeft size={14} />
+        Acesso da transportadora
+      </Link>
+    </main>
   );
 }

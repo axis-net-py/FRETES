@@ -1,77 +1,111 @@
-# Container Track
+# AXIS Fretes
 
-Webapp (PWA) para controle de frete de container. Quando o motorista entra na geofence do
-portão de liberação do porto, o status do container muda e o cliente recebe automaticamente
-uma mensagem no WhatsApp.
+Controle de fretes de containers com painel administrativo, rastreamento GPS por link privado e avisos por template da WhatsApp Cloud API. Interface em português, responsiva, com base Capacitor para futura distribuição Android/iOS.
 
-Preparado para virar app Android/iOS via Capacitor, reaproveitando a mesma base de código.
+## Funcionalidades
+
+- Login administrativo com cookie HttpOnly, assinatura JWT de 12 horas e limite de tentativas persistente.
+- Clientes com telefone internacional e autorização para receber avisos; motoristas com placa.
+- Portões com coordenadas e raio configuráveis, vinculados individualmente ao frete.
+- Containers, busca, filtros, exportação CSV e avanço manual de etapas.
+- Link privado por frete, válido por 7 dias, revogável ao gerar outro. A conclusão do frete revoga o link.
+- Rastreamento voluntário: botão iniciar/parar e permissão do sistema operacional.
+- Entrada confiável no portão: posição recente, margem de precisão e atualização atômica no PostgreSQL.
+- Registro de evento e notificação na mesma transação, com proteção contra posições concorrentes/repetidas.
+- Histórico de avisos e tentativa manual para falhas ou configurações pendentes.
+- Demonstração pública em `/demo`, com dados fictícios isolados do banco.
+- Os dados operacionais exigem autenticação. O link do motorista só dá acesso ao próprio frete.
 
 ## Stack
 
-- Next.js 14 (App Router) + TypeScript + Tailwind
-- Prisma + SQLite (troque `datasource` para Postgres em produção)
-- Capacitor 6 (`@capacitor/geolocation`) para o build nativo
-- Provider de WhatsApp plugável: `console` (dev), `twilio`, `meta` (Cloud API)
+Next.js 15 / React 19 / TypeScript / Tailwind CSS 3, Prisma 5 com PostgreSQL Neon, Capacitor 6, WhatsApp Cloud API da Meta e Vercel.
 
-## Rodando localmente
+## Desenvolvimento
 
-```bash
+Requer Node.js 22 ou 24 e PostgreSQL. Nunca versione segredos.
+
+```sh
+npm ci
 cp .env.example .env
-npm install
-npm run db:push
-npm run db:seed   # cliente, motorista, container e geofence de exemplo
+# Preencha DATABASE_URL, ADMIN_PASSWORD e SESSION_SECRET
+npm run db:deploy
 npm run dev
 ```
 
-Telas:
+Acesse `http://localhost:3000/login` ou `http://localhost:3000/demo`.
 
-- `/` painel de containers, geofences e histórico de mensagens
-- `/cadastro` clientes, motoristas, containers e geofences
-- `/motorista` rastreamento GPS do motorista (envia posição a cada 15 s)
+A senha administrativa é configurada em `ADMIN_PASSWORD`. Gere uma senha longa e um `SESSION_SECRET` aleatório com pelo menos 32 bytes. Altere ambos para revogar todas as sessões existentes. Não há cadastro público de administradores.
 
-Para simular a chegada ao portão sem GPS real:
+## Fluxo operacional
 
-```bash
-node scripts/simulate-position.mjs seed-driver -23.94215 -46.31056
-```
+1. Cadastre cliente e autorização para avisos.
+2. Cadastre motorista e caminhão.
+3. Cadastre o portão com coordenadas verificadas no terminal. Exemplos visuais não são coordenadas homologadas.
+4. Crie um frete, associando cliente, motorista e portão.
+5. Abra os detalhes do frete, gere um link e compartilhe-o pessoalmente com o motorista.
+6. O motorista autoriza o GPS e inicia o rastreamento. A versão web precisa ficar aberta.
+7. Uma posição válida dentro do portão avança `EM_TRANSITO` para `CHEGADA_PORTAO` e prepara um aviso.
+8. As demais etapas são confirmadas manualmente no painel.
 
-## Como o disparo funciona
+Chegada física **não equivale à liberação aduaneira ou autorização de retirada**. O evento GPS nunca marca automaticamente “Liberado”.
 
-1. O app do motorista envia posições para `POST /api/positions`.
-2. `src/lib/geofence-engine.ts` compara a posição com as geofences ativas (haversine).
-3. Na primeira posição dentro do raio registra um evento `ENTER`, atualiza o status do
-   container e dispara o WhatsApp. Só volta a disparar depois de um evento `EXIT`
-   (distância maior que raio + `GEOFENCE_EXIT_BUFFER_M`), evitando mensagens repetidas.
-4. Todo envio fica registrado na tabela `Notification` com status e erro do provider.
+O servidor só aceita posições com até 120 segundos, no máximo 30 segundos no futuro, precisão até o menor valor entre 100 m e metade do raio. Toda a área de incerteza deve estar dentro do raio. Uma leitura inicial já dentro da área conta como chegada. GPS enviado pelo dispositivo não é prova antifraude.
+
+Cada cadastro representa uma operação e tem código de container único. O MVP não modela múltiplas viagens históricas para o mesmo código; evolua para entidades separadas Container/Viagem se houver esse requisito.
 
 ## WhatsApp
 
-Configure `WHATSAPP_PROVIDER` no `.env`:
+A publicação inicial usa `WHATSAPP_PROVIDER=disabled`: **nenhuma mensagem real é enviada**. Configure na Vercel:
 
-- `console`: apenas loga a mensagem (padrão, para desenvolvimento)
-- `twilio`: exige `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`
-- `meta`: exige `META_WHATSAPP_TOKEN`, `META_WHATSAPP_PHONE_NUMBER_ID`
+| Variável                      | Conteúdo                                       |
+| ----------------------------- | ---------------------------------------------- |
+| WHATSAPP_PROVIDER             | meta                                           |
+| META_WHATSAPP_TOKEN           | Token de usuário de sistema                    |
+| META_WHATSAPP_PHONE_NUMBER_ID | ID do número remetente                         |
+| META_WHATSAPP_TEMPLATE        | Nome do template aprovado                      |
+| META_GRAPH_VERSION            | Versão suportada da Graph API da sua aplicação |
+| META_TEMPLATE_LANGUAGE        | pt_BR, ou idioma exato aprovado                |
 
-Em produção, as duas APIs exigem template aprovado para iniciar conversa fora da janela de
-24 h — o envio de texto livre implementado aqui funciona dentro da janela e no sandbox.
+O template deve ter quatro parâmetros de corpo, nesta ordem: nome do cliente, código do container, status, nome do portão. Exemplo:
 
-## Build Android / iOS
+> Olá {{1}}, atualização do container {{2}}: {{3}}. Local: {{4}}.
 
-O app nativo carrega a aplicação Next.js hospedada (mesma base de código):
+Após configurar e redeployar, use “Tentar envio” no histórico para avisos pendentes que ainda sejam relevantes.
 
-```bash
-export CAPACITOR_SERVER_URL="https://seu-dominio.com"
-npx cap add android      # e/ou: npx cap add ios
-npx cap sync
-npx cap open android
+Estados: PENDING (na fila), UNCONFIGURED (faltam credenciais), NO_CONSENT (sem autorização), SENDING (em processamento), ACCEPTED (Meta aceitou), FAILED (Meta recusou) e UNKNOWN (resultado incerto). ACCEPTED **não confirma entrega**; não há webhook de recibos nesta versão. Timeouts não são reenviados automaticamente, porque a API pode ter aceitado a mensagem. Registros SENDING interrompidos também precisam de conferência manual. Isso evita prometer entrega “exatamente uma vez” para uma API externa.
+
+Referências: [exemplos oficiais da Meta](https://github.com/fbsamples/whatsapp-api-examples) e [templates](https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/messages/template/).
+
+## Android e iOS
+
+Veja [docs/MOBILE.md](docs/MOBILE.md). A camada GPS em `src/lib/location-client.ts` usa a API web ou o plugin nativo conforme a plataforma. O Capacitor carrega a aplicação HTTPS hospedada; o shell local informa quando a URL não foi configurada.
+
+**Não inclui binários, publicação nas lojas nem rastreamento confiável em segundo plano.** É necessário integrar o serviço nativo de background, permissões, ciclo de vida e testes físicos antes de usar com tela bloqueada.
+
+## Verificação
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run test:integration
+npm run build
 ```
 
-Permissões necessárias:
+O teste de integração cria registros prefixados TEST em um banco configurado, testa concorrência, isolamento e expiração, e remove exclusivamente esses registros ao final. Exige WhatsApp desativado. Use um banco dedicado para CI. A demonstração não semeia dados de produção.
 
-- Android: `ACCESS_FINE_LOCATION` e, para rastreio com a tela apagada,
-  `ACCESS_BACKGROUND_LOCATION` + foreground service
-- iOS: `NSLocationWhenInUseUsageDescription` e `NSLocationAlwaysAndWhenInUseUsageDescription`
+## Deploy
 
-Para rastreio em background contínuo, troque `@capacitor/geolocation` por um plugin de
-background location (ex: `@capacitor-community/background-geolocation`) mantendo a
-interface de `src/lib/location-client.ts`.
+Projeto Vercel: `fretes`, equipe `allaneggert1-9773s-projects`. Banco Neon: `broad-poetry-07372214`, região São Paulo.
+
+Configure segredos por ambiente, execute `npm run db:deploy` contra o banco correspondente e publique:
+
+```sh
+vercel deploy --yes --no-wait --scope allaneggert1-9773s-projects
+```
+
+As migrations não são executadas automaticamente em cada build. Não use SQLite no filesystem efêmero da Vercel. Antes de promover uma preview para produção, configure as mesmas variáveis no ambiente Production e escolha um banco apropriado. Previews protegidas pela Vercel exigem acesso à equipe, inclusive para abrir o link do motorista.
+
+## Limites operacionais
+
+Este MVP é para uma única transportadora e um administrador. Não inclui multiempresa, recuperação de senha por e-mail, trilha completa de auditoria, GPS antifraude, captura offline, recibos de entrega do WhatsApp ou limpeza automática de histórico de posições. Defina retenção de dados e acrescente esses controles conforme a escala da operação.
