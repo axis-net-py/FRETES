@@ -1,0 +1,17 @@
+{
+  "name": "Container Track",
+  "short_name": "ContainerTrack",
+  "description": "Controle de frete de container com alerta automático no WhatsApp",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

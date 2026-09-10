@@ -1,0 +1,38 @@
+{
+  "name": "container-track",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:push": "prisma db push",
+    "db:seed": "node prisma/seed.mjs",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/geolocation": "^6.1.1",
+    "@prisma/client": "^5.22.0",
+    "next": "14.2.35",
+    "prisma": "^5.22.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}
