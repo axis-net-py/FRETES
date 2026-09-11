@@ -29,6 +29,7 @@ export default function Shell({
   const nav = [
     { href: "/", name: "Visão geral", icon: SquaresFour },
     { href: "/?view=fretes", name: "Fretes", icon: Package },
+    { href: "/importar", name: "Importar documento", icon: Package },
     { href: "/cadastro?tab=drivers", name: "Motoristas", icon: Truck },
     { href: "/cadastro?tab=clients", name: "Clientes", icon: Users },
     { href: "/cadastro?tab=gates", name: "Portos e portões", icon: MapPin },

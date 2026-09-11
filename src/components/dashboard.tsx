@@ -32,6 +32,14 @@ export type Freight = {
   status: string;
   origin: string;
   destination: string;
+  crt?: string;
+  micDta?: string;
+  truckPlate?: string;
+  trailerPlate?: string;
+  freightValue?: string;
+  freightCurrency?: string;
+  seal?: string;
+  document?: { id: string; filename: string } | null;
   client: { name: string };
   driver: { name: string; plate?: string } | null;
   updatedAt: string;
@@ -657,6 +665,36 @@ export default function Dashboard({
               <dd>{selected.client.name}</dd>
               <dt>Motorista</dt>
               <dd>{selected.driver?.name || "—"}</dd>
+              <dt>CRT / MIC-DTA</dt>
+              <dd>
+                {selected.crt || "—"} / {selected.micDta || "—"}
+              </dd>
+              <dt>Cavalo / carreta</dt>
+              <dd>
+                {selected.truckPlate || selected.driver?.plate || "—"} /{" "}
+                {selected.trailerPlate || "—"}
+              </dd>
+              <dt>Valor do frete</dt>
+              <dd>
+                {selected.freightValue
+                  ? `${selected.freightCurrency || ""} ${Number(selected.freightValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                  : "—"}
+              </dd>
+              <dt>Lacre</dt>
+              <dd>{selected.seal || "—"}</dd>
+              {selected.document && (
+                <>
+                  <dt>Documento</dt>
+                  <dd>
+                    <a
+                      className="underline"
+                      href={`/api/documents/${selected.document.id}`}
+                    >
+                      {selected.document.filename}
+                    </a>
+                  </dd>
+                </>
+              )}
               <dt>Trajeto</dt>
               <dd>
                 {selected.origin} → {selected.destination}

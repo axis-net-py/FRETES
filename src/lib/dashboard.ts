@@ -6,6 +6,7 @@ export async function getDashboard() {
         orderBy: { updatedAt: "desc" },
         include: {
           client: true,
+          document: { select: { id: true, filename: true } },
           driver: true,
           events: { orderBy: { createdAt: "desc" } },
         },

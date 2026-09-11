@@ -44,6 +44,14 @@ model Container {
   status     String   @default("EM_TRANSITO")
   origin     String?
   destination String?
+  crt String?
+  micDta String?
+  truckPlate String?
+  trailerPlate String?
+  freightValue String?
+  freightCurrency String?
+  seal String?
+  document TripDocument?
   clientId   String
   driverId   String?
   geofenceId String?
@@ -110,4 +118,16 @@ model LoginAttempt {
   key String @id
   count Int @default(1)
   expiresAt DateTime
+}
+
+model TripDocument {
+  id String @id @default(cuid())
+  filename String
+  mimeType String
+  content Bytes
+  sha256 String @unique
+  extracted Json
+  containerId String? @unique
+  container Container? @relation(fields: [containerId], references: [id])
+  createdAt DateTime @default(now())
 }

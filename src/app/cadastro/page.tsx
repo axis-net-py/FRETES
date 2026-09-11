@@ -98,6 +98,7 @@ function Registration() {
         </Link>
       </div>
       <nav className="form-tabs">
+        <Link href="/importar">Importar documento</Link>
         {tabs.map(([id, title]) => (
           <Link
             className={tab === id ? "selected" : ""}
