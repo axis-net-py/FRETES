@@ -45,7 +45,7 @@ export type Freight = {
   estimatedArrivalAt?: string;
   departedAt?: string;
   document?: { id: string; filename: string } | null;
-  clientId: string;
+  clientId?: string;
   driverId?: string;
   geofenceId?: string;
   client: { name: string };
