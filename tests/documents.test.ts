@@ -10,6 +10,21 @@ import {
   emptyFields,
   detectDocumentType,
 } from "../src/lib/document-fields.ts";
+import { findMatchingDriver } from "../src/lib/driver-match.ts";
+test("matches known drivers despite accents, word order and plate punctuation", () => {
+  const drivers = [
+    { id: "1", name: "González, Claudionor", plate: "AAM-E814" },
+    { id: "2", name: "Outro Motorista", plate: "ABC1234" },
+  ];
+  assert.equal(
+    findMatchingDriver(drivers, "CLAUDIONOR GONZALEZ", "AAME814")?.id,
+    "1",
+  );
+  assert.equal(
+    findMatchingDriver(drivers, "Motorista Novo", "ZZZ9999"),
+    undefined,
+  );
+});
 test("validates reviewed freight amount independently of cargo value", () => {
   const fields = {
     ...emptyFields,
