@@ -286,6 +286,14 @@ h2 {
 .secondary:hover {
   background: #f0f4ee;
 }
+.danger {
+  background: #fff;
+  border: 1px solid #e7caca;
+  color: #a53b3b;
+}
+.danger:hover {
+  background: #fff4f4;
+}
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -725,6 +733,15 @@ tbody tr:hover {
   position: absolute;
   top: 18px;
   right: 18px;
+}
+.edit-freight-form {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fafbf9;
+}
+.edit-freight-form .form-grid {
+  gap: 14px;
 }
 .detail-list {
   display: grid;

@@ -19,6 +19,8 @@ import {
   MagnifyingGlass,
   Copy,
   NavigationArrow,
+  PencilSimple,
+  Trash,
 } from "@phosphor-icons/react";
 import Shell from "./shell";
 import {
@@ -43,6 +45,9 @@ export type Freight = {
   estimatedArrivalAt?: string;
   departedAt?: string;
   document?: { id: string; filename: string } | null;
+  clientId?: string;
+  driverId?: string;
+  geofenceId?: string;
   client: { name: string };
   driver: { name: string; plate?: string } | null;
   updatedAt: string;
@@ -110,6 +115,7 @@ export default function Dashboard({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("TODOS");
   const [selected, setSelected] = useState<Freight | null>(null);
+  const [editing, setEditing] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
@@ -524,6 +530,7 @@ export default function Dashboard({
                     key={c.id}
                     onClick={() => {
                       setSelected(c);
+                      setEditing(false);
                       setLink("");
                       setFeedback("");
                     }}
@@ -664,6 +671,102 @@ export default function Dashboard({
               {selected.code}
             </h2>
             <Badge status={selected.status} />
+            {!demo && (
+              <div className="flex gap-2 mt-5">
+                <button
+                  type="button"
+                  className="btn secondary"
+                  disabled={busy}
+                  onClick={() => setEditing(!editing)}
+                >
+                  <PencilSimple size={16} />
+                  {editing ? "Cancelar alteração" : "Alterar frete"}
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (!window.confirm(`Excluir definitivamente o frete ${selected.code}? Os eventos e avisos vinculados também serão excluídos.`)) return;
+                    const result = await action(
+                      "/api/containers/" + selected.id,
+                      "DELETE",
+                    );
+                    if (result) {
+                      setSelected(null);
+                      setEditing(false);
+                      setFeedback("Frete excluído.");
+                    }
+                  }}
+                >
+                  <Trash size={16} />
+                  Excluir frete
+                </button>
+              </div>
+            )}
+            {editing && !demo && (
+              <form
+                className="edit-freight-form mt-5"
+                onSubmit={async (event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  const payload = Object.fromEntries(form.entries());
+                  const result = await action(
+                    "/api/containers/" + selected.id,
+                    "PATCH",
+                    payload,
+                  );
+                  if (result) {
+                    setSelected(result);
+                    setEditing(false);
+                    setFeedback("Frete alterado com sucesso.");
+                  }
+                }}
+              >
+                <div className="form-grid">
+                  {[
+                    ["code", "Número do container", selected.code],
+                    ["origin", "Origem", selected.origin],
+                    ["destination", "Destino", selected.destination],
+                    ["crt", "CRT", selected.crt],
+                    ["micDta", "MIC/DTA", selected.micDta],
+                    ["truckPlate", "Placa do cavalo", selected.truckPlate],
+                    ["trailerPlate", "Placa da carreta", selected.trailerPlate],
+                    ["freightValue", "Valor do frete", selected.freightValue],
+                    ["freightCurrency", "Moeda", selected.freightCurrency],
+                    ["seal", "Lacre", selected.seal],
+                  ].map(([name, label, value]) => (
+                    <label key={name}>
+                      {label}
+                      <input name={name} defaultValue={value || ""} required={["code", "origin", "destination"].includes(name!)} />
+                    </label>
+                  ))}
+                  <label>
+                    Cliente
+                    <select name="clientId" defaultValue={selected.clientId} required>
+                      {data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Motorista
+                    <select name="driverId" defaultValue={selected.driverId} required>
+                      {data.drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Portão
+                    <select name="geofenceId" defaultValue={selected.geofenceId} required>
+                      {data.gates.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    Tempo previsto (horas)
+                    <input name="transitHours" type="number" min={1} max={720} defaultValue={selected.transitHours} required />
+                  </label>
+                </div>
+                <button className="btn primary mt-4" disabled={busy}>Salvar alterações</button>
+              </form>
+            )}
             <dl className="detail-list">
               <dt>Cliente</dt>
               <dd>{selected.client.name}</dd>
