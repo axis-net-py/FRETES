@@ -21,9 +21,7 @@ function Importer() {
     [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
-  const [provider, setProvider] = useState("none"),
-    [testOnly, setTestOnly] = useState(false);
-  const [manual, setManual] = useState(false);
+  const [provider, setProvider] = useState("none");
   const [clients, setClients] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
     [gates, setGates] = useState<Row[]>([]);
@@ -40,7 +38,6 @@ function Importer() {
     setDocs(results[0].documents);
     setReady(results[0].ready);
     setProvider(results[0].provider);
-    setTestOnly(results[0].testOnly);
     setClients(results[1]);
     setDrivers(results[2]);
     setGates(results[3]);
@@ -65,14 +62,14 @@ function Importer() {
     );
     setDriverId(dm.length === 1 ? dm[0].id : "");
   }
-  async function upload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function upload(file: File) {
     setBusy(true);
     setMessage("");
+    setDoc(null);
     try {
-      const data = new FormData(e.currentTarget);
-      const file = data.get("file") as File;
       if (file.size > 4000000) throw new Error("Limite de 4 MB por arquivo.");
+      const data = new FormData();
+      data.set("file", file);
       const r = await fetch("/api/documents", { method: "POST", body: data });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
@@ -128,36 +125,17 @@ function Importer() {
           Voltar ao painel
         </Link>
       </div>
-      <form className="panel form-panel" onSubmit={upload}>
+      <section className="panel form-panel">
         <h2>1. Enviar documento</h2>
         <p>
-          PDF, JPG ou PNG · até 4 MB · uma viagem por arquivo. A leitura
-          automática envia o documento ao serviço de IA{" "}
-          {provider === "gemini" ? "Google Gemini" : "OpenAI"}.
+          Selecione um PDF, JPG ou PNG de até 4 MB. A leitura começa
+          automaticamente e preenche os dados da viagem, cliente, motorista,
+          veículo, destino e container com {provider === "gemini" ? "Google Gemini" : "OpenAI"}.
         </p>
-        <label>
-          Como deseja importar?
-          <select
-            name="mode"
-            value={manual ? "manual" : "automatic"}
-            onChange={(e) => setManual(e.target.value === "manual")}
-            disabled={busy}
-          >
-            <option value="automatic">Interpretar documento com IA</option>
-            <option value="manual">Anexar e preencher sem enviar à IA</option>
-          </select>
-        </label>
         {!ready && (
           <p className="feedback">
-            Leitura automática pendente de ativação. Você pode anexar o
-            documento e preencher a conferência manualmente.
-          </p>
-        )}
-        {testOnly && !manual && (
-          <p className="feedback">
-            Gemini em modo de teste. Use apenas documentos fictícios ou
-            anonimizados. O serviço gratuito pode usar o conteúdo para melhorar
-            produtos do Google.
+            A leitura automática não está configurada. Ative um provedor de IA
+            antes de enviar documentos.
           </p>
         )}
         <label>
@@ -167,28 +145,16 @@ function Importer() {
             name="file"
             type="file"
             accept="application/pdf,image/jpeg,image/png"
-            disabled={busy}
+            disabled={busy || !ready}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void upload(file);
+              e.target.value = "";
+            }}
           />
         </label>
-        {testOnly && !manual && (
-          <label className="flex gap-3 mt-5">
-            <input
-              name="testDocument"
-              type="checkbox"
-              required
-              disabled={busy}
-            />
-            Este arquivo não contém informações pessoais ou confidenciais.
-          </label>
-        )}
-        <button disabled={busy} className="btn primary mt-5">
-          {busy
-            ? "Processando…"
-            : ready && !manual
-              ? "Ler documento"
-              : "Enviar documento"}
-        </button>
-      </form>
+        {busy && <p className="feedback">Lendo documento e preenchendo os dados…</p>}
+      </section>
       {message && (
         <p role="status" className="feedback">
           {message}
