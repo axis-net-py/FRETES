@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { detectDocumentType, emptyFields } from "@/lib/document-fields";
+import { detectDocumentType } from "@/lib/document-fields";
 import {
   extractDocument,
   DocumentExtractionError,
@@ -34,14 +34,10 @@ export async function POST(req: Request) {
   try {
     const form = await req.formData();
     const config = documentProvider();
-    const manual = form.get("mode") === "manual";
-    if (!manual && config.testOnly && form.get("testDocument") !== "on")
+    if (!config.ready)
       return NextResponse.json(
-        {
-          error:
-            "Neste modo, envie apenas documentos fictícios ou anonimizados, sem informações pessoais ou confidenciais.",
-        },
-        { status: 400 },
+        { error: "A leitura automática não está configurada." },
+        { status: 503 },
       );
     const file = form.get("file");
     if (!(file instanceof File) || !file.size || file.size > 4_000_000)
@@ -66,9 +62,7 @@ export async function POST(req: Request) {
     if (
       existing &&
       (existing.containerId ||
-        previous?.fields?.code ||
-        !config.ready ||
-        manual)
+        previous?.fields?.code)
     )
       return NextResponse.json(existing);
     // Shared, persistent limit also applies across serverless instances.
@@ -87,13 +81,7 @@ export async function POST(req: Request) {
         { error: "Limite de 30 leituras por hora atingido. Tente mais tarde." },
         { status: 429 },
       );
-    const extracted = manual
-      ? {
-          fields: emptyFields,
-          warning:
-            "Documento anexado sem envio ao serviço de IA. Preencha e confira os dados da viagem.",
-        }
-      : await extractDocument(content, mimeType);
+    const extracted = await extractDocument(content, mimeType);
     if (existing) {
       await prisma.tripDocument.update({
         where: { id: existing.id },
