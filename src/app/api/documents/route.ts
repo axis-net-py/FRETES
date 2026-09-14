@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { detectDocumentType } from "@/lib/document-fields";
-import { extractDocument } from "@/lib/document-extraction";
+import { detectDocumentType, emptyFields } from "@/lib/document-fields";
+import {
+  extractDocument,
+  DocumentExtractionError,
+} from "@/lib/document-extraction";
+import { documentProvider } from "@/lib/document-provider";
 import { apiError } from "@/lib/api";
 export const maxDuration = 60;
 export async function GET() {
   return NextResponse.json({
-    ready: !!process.env.OPENAI_API_KEY,
+    ...documentProvider(),
     documents: await prisma.tripDocument.findMany({
       take: 30,
       orderBy: { createdAt: "desc" },
@@ -29,6 +33,16 @@ export async function POST(req: Request) {
     );
   try {
     const form = await req.formData();
+    const config = documentProvider();
+    const manual = form.get("mode") === "manual";
+    if (!manual && config.testOnly && form.get("testDocument") !== "on")
+      return NextResponse.json(
+        {
+          error:
+            "Neste modo, envie apenas documentos fictícios ou anonimizados, sem informações pessoais ou confidenciais.",
+        },
+        { status: 400 },
+      );
     const file = form.get("file");
     if (!(file instanceof File) || !file.size || file.size > 4_000_000)
       return NextResponse.json(
@@ -53,7 +67,8 @@ export async function POST(req: Request) {
       existing &&
       (existing.containerId ||
         previous?.fields?.code ||
-        !process.env.OPENAI_API_KEY)
+        !config.ready ||
+        manual)
     )
       return NextResponse.json(existing);
     // Shared, persistent limit also applies across serverless instances.
@@ -72,7 +87,13 @@ export async function POST(req: Request) {
         { error: "Limite de 30 leituras por hora atingido. Tente mais tarde." },
         { status: 429 },
       );
-    const extracted = await extractDocument(content, mimeType);
+    const extracted = manual
+      ? {
+          fields: emptyFields,
+          warning:
+            "Documento anexado sem envio ao serviço de IA. Preencha e confira os dados da viagem.",
+        }
+      : await extractDocument(content, mimeType);
     if (existing) {
       await prisma.tripDocument.update({
         where: { id: existing.id },
@@ -92,6 +113,8 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(doc, { status: 201 });
   } catch (e) {
+    if (e instanceof DocumentExtractionError)
+      return NextResponse.json({ error: e.message }, { status: e.status });
     return apiError(e);
   }
 }

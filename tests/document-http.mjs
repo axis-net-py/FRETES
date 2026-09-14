@@ -15,10 +15,11 @@ try {
   const cookie = login.headers.get("set-cookie").split(";")[0];
   const headers = { cookie };
   const info = await (await fetch(base + "/api/documents", { headers })).json();
-  assert.equal(info.ready, false, "Only run this fixture when OCR is disabled");
+  assert.equal(typeof info.ready, "boolean");
   const bytes = Buffer.from("%PDF-1.4\n% smoke-test " + suffix + "\n%%EOF");
   const form = () => {
     const f = new FormData();
+    f.set("mode", "manual");
     f.set(
       "file",
       new Blob([bytes], { type: "application/pdf" }),

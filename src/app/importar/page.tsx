@@ -21,6 +21,9 @@ function Importer() {
     [ready, setReady] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
+  const [provider, setProvider] = useState("none"),
+    [testOnly, setTestOnly] = useState(false);
+  const [manual, setManual] = useState(false);
   const [clients, setClients] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
     [gates, setGates] = useState<Row[]>([]);
@@ -36,6 +39,8 @@ function Importer() {
     );
     setDocs(results[0].documents);
     setReady(results[0].ready);
+    setProvider(results[0].provider);
+    setTestOnly(results[0].testOnly);
     setClients(results[1]);
     setDrivers(results[2]);
     setGates(results[3]);
@@ -126,12 +131,32 @@ function Importer() {
         <h2>1. Enviar documento</h2>
         <p>
           PDF, JPG ou PNG · até 4 MB · uma viagem por arquivo. A leitura
-          automática envia o documento ao serviço de IA da OpenAI.
+          automática envia o documento ao serviço de IA{" "}
+          {provider === "gemini" ? "Google Gemini" : "OpenAI"}.
         </p>
+        <label>
+          Como deseja importar?
+          <select
+            name="mode"
+            value={manual ? "manual" : "automatic"}
+            onChange={(e) => setManual(e.target.value === "manual")}
+            disabled={busy}
+          >
+            <option value="automatic">Interpretar documento com IA</option>
+            <option value="manual">Anexar e preencher sem enviar à IA</option>
+          </select>
+        </label>
         {!ready && (
           <p className="feedback">
             Leitura automática pendente de ativação. Você pode anexar o
             documento e preencher a conferência manualmente.
+          </p>
+        )}
+        {testOnly && !manual && (
+          <p className="feedback">
+            Gemini em modo de teste. Use apenas documentos fictícios ou
+            anonimizados. O serviço gratuito pode usar o conteúdo para melhorar
+            produtos do Google.
           </p>
         )}
         <label>
@@ -144,8 +169,23 @@ function Importer() {
             disabled={busy}
           />
         </label>
+        {testOnly && !manual && (
+          <label className="flex gap-3 mt-5">
+            <input
+              name="testDocument"
+              type="checkbox"
+              required
+              disabled={busy}
+            />
+            Este arquivo não contém informações pessoais ou confidenciais.
+          </label>
+        )}
         <button disabled={busy} className="btn primary mt-5">
-          {busy ? "Processando…" : ready ? "Ler documento" : "Enviar documento"}
+          {busy
+            ? "Processando…"
+            : ready && !manual
+              ? "Ler documento"
+              : "Enviar documento"}
         </button>
       </form>
       {message && (
