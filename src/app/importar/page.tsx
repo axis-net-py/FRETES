@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import Shell from "@/components/shell";
+import { findMatchingDriver } from "@/lib/driver-match";
 import {
   DocumentFields,
   emptyFields,
@@ -54,13 +55,12 @@ function Importer() {
         d.extracted.fields.clientName.trim().toUpperCase(),
     );
     setClientId(matches.length === 1 ? matches[0].id : "");
-    const dm = drivers.filter(
-      (c) =>
-        c.name.trim().toUpperCase() ===
-          d.extracted.fields.driverName.trim().toUpperCase() &&
-        c.plate === d.extracted.fields.truckPlate,
+    const matchedDriver = findMatchingDriver(
+      drivers,
+      d.extracted.fields.driverName,
+      d.extracted.fields.truckPlate,
     );
-    setDriverId(dm.length === 1 ? dm[0].id : "");
+    setDriverId(matchedDriver?.id ?? "");
   }
   async function upload(file: File) {
     setBusy(true);
@@ -213,7 +213,7 @@ function Importer() {
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value)}
               >
-                <option value="">Criar motorista com o nome acima</option>
+                <option value="">Criar motorista automaticamente</option>
                 {drivers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} · {c.plate}

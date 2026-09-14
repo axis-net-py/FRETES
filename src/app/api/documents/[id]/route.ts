@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { documentFieldsSchema } from "@/lib/document-fields";
 import { apiError } from "@/lib/api";
+import { findMatchingDriver } from "@/lib/driver-match";
 const schema = z.object({
   fields: documentFieldsSchema,
   clientId: z.string(),
@@ -70,15 +71,28 @@ export async function POST(
                 consent: !!d.whatsapp && d.consent,
               },
             });
-        const driver = d.driverId
+        const selectedDriver = d.driverId
           ? await tx.driver.findUniqueOrThrow({ where: { id: d.driverId } })
-          : await tx.driver.create({
-              data: {
-                name: d.fields.driverName,
-                phone: "",
-                plate: d.fields.truckPlate,
-              },
-            });
+          : null;
+        const knownDriver = selectedDriver
+          ? null
+          : findMatchingDriver(
+              await tx.driver.findMany({
+                select: { id: true, name: true, plate: true },
+              }),
+              d.fields.driverName,
+              d.fields.truckPlate,
+            );
+        const driver =
+          selectedDriver ??
+          knownDriver ??
+          (await tx.driver.create({
+            data: {
+              name: d.fields.driverName,
+              phone: "",
+              plate: d.fields.truckPlate,
+            },
+          }));
         const { clientName, driverName, ...fields } = d.fields;
         void clientName;
         void driverName;
