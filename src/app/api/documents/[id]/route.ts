@@ -11,6 +11,7 @@ const schema = z.object({
   whatsapp: z.string().regex(/^(?:\+[1-9]\d{7,14})?$/),
   consent: z.boolean(),
   confirmed: z.literal(true),
+  transitHours: z.coerce.number().int().min(1).max(720).optional(),
 });
 export async function GET(
   _req: Request,
@@ -87,6 +88,7 @@ export async function POST(
             clientId: client.id,
             driverId: driver.id,
             geofenceId: d.geofenceId || null,
+            transitHours: d.transitHours,
           },
         });
         await tx.tripDocument.update({

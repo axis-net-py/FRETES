@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { distanceMeters } from "../src/lib/geo.ts";
-import { reliableInside } from "../src/lib/geofence-policy.ts";
+import { reliableInside, reliableOutside } from "../src/lib/geofence-policy.ts";
 import { createSession, validSession } from "../src/lib/session.ts";
 const gate = { latitude: -23.94, longitude: -46.31, radiusM: 300 };
 const now = Date.now();
@@ -59,4 +59,34 @@ test("session signatures are verified and tampering rejected", async () => {
   assert.equal(await validSession(token), true);
   assert.equal(await validSession(token + "broken"), false);
   assert.equal(await validSession(), false);
+});
+test("exit needs GPS accuracy beyond the gate plus a 50m buffer", () => {
+  assert.equal(
+    reliableOutside({ ...fix, latitude: gate.latitude + 0.0028 }, gate, now),
+    false,
+  );
+  assert.equal(
+    reliableOutside({ ...fix, latitude: gate.latitude + 0.004 }, gate, now),
+    true,
+  );
+  assert.equal(
+    reliableOutside(
+      { ...fix, latitude: gate.latitude + 0.004, accuracyM: 900 },
+      gate,
+      now,
+    ),
+    false,
+  );
+  assert.equal(
+    reliableOutside(
+      {
+        ...fix,
+        latitude: gate.latitude + 0.004,
+        recordedAt: new Date(now - 121000).toISOString(),
+      },
+      gate,
+      now,
+    ),
+    false,
+  );
 });

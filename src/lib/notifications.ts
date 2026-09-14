@@ -5,6 +5,14 @@ export async function dispatchNotification(id: string) {
     include: { container: { include: { client: true } } },
   });
   if (!n || !["PENDING", "FAILED", "UNCONFIGURED"].includes(n.status)) return n;
+  if (n.kind !== "DEPARTURE")
+    return prisma.notification.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+        error: "Aviso de chegada substituído pelo aviso de saída do porto.",
+      },
+    });
   if (!n.container.client.consent)
     return prisma.notification.update({
       where: { id },
@@ -13,9 +21,12 @@ export async function dispatchNotification(id: string) {
   const {
     META_WHATSAPP_TOKEN: token,
     META_WHATSAPP_PHONE_NUMBER_ID: phone,
-    META_WHATSAPP_TEMPLATE: template,
     META_GRAPH_VERSION: version,
   } = process.env;
+  const template =
+    n.kind === "DEPARTURE"
+      ? process.env.META_WHATSAPP_DEPARTURE_TEMPLATE
+      : process.env.META_WHATSAPP_TEMPLATE;
   if (
     process.env.WHATSAPP_PROVIDER !== "meta" ||
     !token ||

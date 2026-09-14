@@ -1,5 +1,5 @@
-import { Prisma } from "@prisma/client";
-import { reliableInside } from "./geofence-policy";
+import { randomBytes, createHash } from "node:crypto";
+import { reliableInside, reliableOutside } from "./geofence-policy";
 import { prisma } from "./prisma";
 import { dispatchNotification } from "./notifications";
 
@@ -12,80 +12,181 @@ export type PositionInput = {
   recordedAt: string;
 };
 export async function processPosition(input: PositionInput) {
-  const container = await prisma.container.findFirst({
-    where: { id: input.containerId, driverId: input.driverId },
-    include: { client: true },
-  });
-  if (!container) throw new Error("Frete não vinculado ao motorista");
-  if (container.status !== "EM_TRANSITO") return [];
-  const gate = container.geofenceId
-    ? await prisma.geofence.findUnique({ where: { id: container.geofenceId } })
-    : null;
-  if (!gate?.active) return [];
-  const age = Date.now() - new Date(input.recordedAt).getTime();
+  const fixAt = new Date(input.recordedAt);
+  const age = Date.now() - fixAt.getTime();
   if (!Number.isFinite(age) || age > 120000 || age < -30000) return [];
-  await prisma.position.create({
-    data: { ...input, recordedAt: new Date(input.recordedAt) },
-  });
-  if (!reliableInside(input, gate)) return [];
-  let notificationId: string | undefined;
-  try {
-    notificationId = await prisma.$transaction(
-      async (tx) => {
-        // Compare-and-set prevents concurrent fixes from triggering duplicate messages.
-        const claimed = await tx.container.updateMany({
-          where: { id: container.id, status: "EM_TRANSITO" },
-          data: { status: "CHEGADA_PORTAO" },
-        });
-        if (!claimed.count) return undefined;
-        await tx.geofenceEvent.create({
+  const outcome = await prisma.$transaction(
+    async (tx) => {
+      // Serialize fixes so concurrent, repeated or out-of-order samples cannot confirm a false exit.
+      await tx.$queryRaw`SELECT "id" FROM "Container" WHERE "id" = ${input.containerId} FOR UPDATE`;
+      const c = await tx.container.findFirst({
+        where: { id: input.containerId, driverId: input.driverId },
+        include: { client: true },
+      });
+      if (!c) throw new Error("Frete não vinculado ao motorista");
+      if (
+        c.departedAt ||
+        c.status === "ENTREGUE" ||
+        c.status === "A_CAMINHO_DESTINO"
+      )
+        return null;
+      if (c.lastGeofenceFixAt && fixAt <= c.lastGeofenceFixAt) return null;
+      const gate = c.geofenceId
+        ? await tx.geofence.findUnique({ where: { id: c.geofenceId } })
+        : null;
+      if (!gate?.active) return null;
+      await tx.position.create({ data: { ...input, recordedAt: fixAt } });
+      const inside = reliableInside(input, gate),
+        outside = reliableOutside(input, gate);
+      const common = { lastGeofenceFixAt: fixAt };
+      if (inside) {
+        await tx.container.update({
+          where: { id: c.id },
           data: {
-            geofenceId: gate.id,
-            containerId: container.id,
-            type: "ENTER",
-            latitude: input.latitude,
-            longitude: input.longitude,
+            ...common,
+            exitCandidateAt: null,
+            gateEnteredAt: c.gateEnteredAt || fixAt,
+            ...(c.status === "EM_TRANSITO" ? { status: "CHEGADA_PORTAO" } : {}),
           },
         });
-        const parameters = [
-          container.client.name,
-          container.code,
-          "Chegou ao portão de liberação",
-          gate.name,
-        ];
-        const n = await tx.notification.create({
-          data: {
-            containerId: container.id,
-            to: container.client.whatsapp,
-            body: `Olá ${parameters[0]}, seu container ${parameters[1]} chegou ao portão de liberação em ${parameters[3]}.`,
-            parameters: JSON.stringify(parameters),
-            provider: process.env.WHATSAPP_PROVIDER || "disabled",
-            status: container.client.consent ? "PENDING" : "NO_CONSENT",
-            error: container.client.consent
+        if (!c.gateEnteredAt) {
+          await tx.geofenceEvent.upsert({
+            where: {
+              geofenceId_containerId_type: {
+                geofenceId: gate.id,
+                containerId: c.id,
+                type: "ENTER",
+              },
+            },
+            update: {},
+            create: {
+              geofenceId: gate.id,
+              containerId: c.id,
+              type: "ENTER",
+              latitude: input.latitude,
+              longitude: input.longitude,
+              createdAt: fixAt,
+            },
+          });
+          return {
+            status: "CHEGADA_PORTAO",
+            gate,
+            containerId: c.id,
+            code: c.code,
+            notificationId: null,
+          };
+        }
+        return null;
+      }
+      if (!outside || !c.gateEnteredAt) {
+        await tx.container.update({
+          where: { id: c.id },
+          data: { ...common, exitCandidateAt: null },
+        });
+        return null;
+      }
+      const elapsed = c.exitCandidateAt
+        ? fixAt.getTime() - c.exitCandidateAt.getTime()
+        : 0;
+      if (
+        !c.exitCandidateAt ||
+        !c.lastGeofenceFixAt ||
+        fixAt.getTime() - c.lastGeofenceFixAt.getTime() > 120000
+      ) {
+        await tx.container.update({
+          where: { id: c.id },
+          data: { ...common, exitCandidateAt: fixAt },
+        });
+        return null;
+      }
+      if (elapsed < 30000) {
+        await tx.container.update({ where: { id: c.id }, data: common });
+        return null;
+      }
+      const departedAt = c.exitCandidateAt;
+      const eta = c.transitHours
+        ? new Date(departedAt.getTime() + c.transitHours * 3600000)
+        : null;
+      const token = randomBytes(32).toString("hex");
+      const link = `${(process.env.APP_URL || "https://fretes-taupe.vercel.app").replace(/\/$/, "")}/acompanhar#${token}`;
+      await tx.container.update({
+        where: { id: c.id },
+        data: {
+          ...common,
+          status: "A_CAMINHO_DESTINO",
+          departedAt,
+          estimatedArrivalAt: eta,
+          exitCandidateAt: null,
+          customerTrackingHash: createHash("sha256")
+            .update(token)
+            .digest("hex"),
+          customerTrackingExpiresAt: new Date(Date.now() + 30 * 86400000),
+        },
+      });
+      await tx.geofenceEvent.create({
+        data: {
+          geofenceId: gate.id,
+          containerId: c.id,
+          type: "EXIT",
+          latitude: input.latitude,
+          longitude: input.longitude,
+          createdAt: departedAt,
+        },
+      });
+      const etaText = eta
+        ? eta.toLocaleString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            dateStyle: "short",
+            timeStyle: "short",
+          }) + " (horário de Brasília; estimativa)"
+        : "A confirmar pela transportadora";
+      const parameters = [
+        c.client.name,
+        c.code,
+        "Saiu da área do portão e iniciou o trajeto",
+        c.destination || "Destino a confirmar",
+        etaText,
+        link,
+      ];
+      const n = await tx.notification.create({
+        data: {
+          containerId: c.id,
+          to: c.client.whatsapp,
+          kind: "DEPARTURE",
+          parameters: JSON.stringify(parameters),
+          body: `Olá ${parameters[0]}, seu container ${parameters[1]} saiu da área do portão de saída. Destino: ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
+          provider: process.env.WHATSAPP_PROVIDER || "disabled",
+          status:
+            c.client.consent && !!c.client.whatsapp ? "PENDING" : "NO_CONSENT",
+          error:
+            c.client.consent && !!c.client.whatsapp
               ? null
-              : "Cliente não autorizou avisos por WhatsApp.",
-          },
-        });
-        return n.id;
-      },
-      { maxWait: 10000, timeout: 15000 },
-    );
-  } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
-      return [];
-    throw e;
-  }
-  if (!notificationId) return [];
-  const result = await dispatchNotification(notificationId);
+              : "WhatsApp ou autorização do cliente pendente.",
+        },
+      });
+      return {
+        status: "A_CAMINHO_DESTINO",
+        gate,
+        containerId: c.id,
+        code: c.code,
+        notificationId: n.id,
+      };
+    },
+    { maxWait: 10000, timeout: 15000 },
+  );
+  if (!outcome) return [];
+  const sent = outcome.notificationId
+    ? await dispatchNotification(outcome.notificationId)
+    : null;
   return [
     {
-      geofenceId: gate.id,
-      geofenceName: gate.name,
-      containerId: container.id,
-      containerCode: container.code,
-      status: "CHEGADA_PORTAO",
-      notified: result?.status === "ACCEPTED",
-      notificationStatus: result?.status,
+      geofenceId: outcome.gate.id,
+      geofenceName: outcome.gate.name,
+      containerId: outcome.containerId,
+      containerCode: outcome.code,
+      status: outcome.status,
+      notified: sent?.status === "ACCEPTED",
+      notificationStatus: sent?.status,
     },
   ];
 }

@@ -11,6 +11,11 @@ export async function PATCH(
   const data = schema.safeParse(await req.json().catch(() => null));
   if (!data.success)
     return NextResponse.json({ error: "Status inválido" }, { status: 400 });
+  if (data.data.status === "A_CAMINHO_DESTINO")
+    return NextResponse.json(
+      { error: "A saída do porto é confirmada pelo GPS após entrada na área." },
+      { status: 400 },
+    );
   const c = await prisma.container.findUnique({ where: { id } });
   if (!c)
     return NextResponse.json(

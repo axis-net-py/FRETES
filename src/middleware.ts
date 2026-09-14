@@ -10,6 +10,8 @@ export async function middleware(req: NextRequest) {
     "/api/tracking",
     "/api/positions",
     "/api/health",
+    "/acompanhar",
+    "/api/customer-tracking",
   ].some((x) => p === x || p.startsWith(x + "/"));
   if (publicPath) return NextResponse.next();
   if (await validSession(req.cookies.get(COOKIE)?.value)) {

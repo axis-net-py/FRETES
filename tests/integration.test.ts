@@ -4,111 +4,179 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { processPosition } from "../src/lib/geofence-engine";
 import { trackingContainer, hashToken } from "../src/lib/tracking";
-test("database: one event per arrival, no real send, token isolation and expiry", async () => {
+import { GET as customerTracking } from "../src/app/api/customer-tracking/route";
+test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA and isolated customer access", async () => {
   if (process.env.WHATSAPP_PROVIDER === "meta")
-    throw new Error("Run integration tests with WHATSAPP_PROVIDER=disabled.");
+    throw new Error("Tests require disabled WhatsApp");
   const suffix = randomUUID();
   let clientId = "",
     driverId = "",
     gateId = "",
     containerId = "";
   try {
-    const client = await prisma.client.create({
-      data: { name: "TEST-" + suffix, whatsapp: "+15555550123", consent: true },
-    });
-    clientId = client.id;
-    const driver = await prisma.driver.create({
-      data: { name: "TEST-" + suffix, phone: "+15555550124" },
-    });
-    driverId = driver.id;
-    const gate = await prisma.geofence.create({
-      data: {
-        name: "TEST-" + suffix,
-        latitude: 0,
-        longitude: 0,
-        radiusM: 300,
-        status: "CHEGADA_PORTAO",
-      },
-    });
-    gateId = gate.id;
+    clientId = (
+      await prisma.client.create({
+        data: {
+          name: "TEST-" + suffix,
+          whatsapp: "+15555550123",
+          consent: true,
+        },
+      })
+    ).id;
+    driverId = (
+      await prisma.driver.create({
+        data: { name: "TEST-" + suffix, phone: "+15555550124" },
+      })
+    ).id;
+    gateId = (
+      await prisma.geofence.create({
+        data: {
+          name: "TEST-" + suffix,
+          latitude: 0,
+          longitude: 0,
+          radiusM: 300,
+          status: "CHEGADA_PORTAO",
+        },
+      })
+    ).id;
     const token = randomBytes(32).toString("hex");
-    const container = await prisma.container.create({
-      data: {
-        code: "TEST-" + suffix,
-        clientId,
-        driverId,
-        geofenceId: gateId,
-        trackingTokenHash: hashToken(token),
-        trackingExpiresAt: new Date(Date.now() + 60000),
-      },
-    });
-    containerId = container.id;
-    const req = new Request("https://example.test/api/tracking", {
-      headers: { Authorization: "Bearer " + token },
-    });
-    assert.equal((await trackingContainer(req))?.id, containerId);
-    assert.equal(
-      await trackingContainer(new Request("https://example.test")),
-      null,
-    );
-    const base = {
+    containerId = (
+      await prisma.container.create({
+        data: {
+          code: "TEST-" + suffix,
+          clientId,
+          driverId,
+          geofenceId: gateId,
+          transitHours: 48,
+          destination: "Destino fictício",
+          trackingTokenHash: hashToken(token),
+          trackingExpiresAt: new Date(Date.now() + 60000),
+        },
+      })
+    ).id;
+    const request = (t: string) =>
+      new Request("https://example.test", {
+        headers: { Authorization: "Bearer " + t },
+      });
+    assert.equal((await trackingContainer(request(token)))?.id, containerId);
+    const now = Date.now();
+    const fix = (seconds: number, latitude = 0, accuracyM = 10) => ({
       containerId,
       driverId,
-      latitude: 0,
+      latitude,
       longitude: 0,
-      accuracyM: 10,
-      recordedAt: new Date().toISOString(),
-    };
-    await processPosition({ ...base, accuracyM: 900 });
+      accuracyM,
+      recordedAt: new Date(now + seconds * 1000).toISOString(),
+    });
+    await processPosition(fix(-110, 0, 900));
+    await assert.rejects(
+      processPosition({ ...fix(-109), driverId: "unrelated" }),
+    );
+    await processPosition(fix(-105, 0.01));
+    await processPosition(fix(-101, 0.01));
     assert.equal(
-      await prisma.geofenceEvent.count({ where: { containerId } }),
+      await prisma.notification.count({ where: { containerId } }),
       0,
     );
-    await assert.rejects(() =>
-      processPosition({ ...base, driverId: "unrelated" }),
-    );
     await Promise.all([
-      processPosition(base),
-      processPosition(base),
-      processPosition(base),
+      processPosition(fix(-95)),
+      processPosition(fix(-95)),
+      processPosition(fix(-95)),
     ]);
     assert.equal(
-      await prisma.geofenceEvent.count({ where: { containerId } }),
+      await prisma.geofenceEvent.count({
+        where: { containerId, type: "ENTER" },
+      }),
       1,
     );
     assert.equal(
       await prisma.notification.count({ where: { containerId } }),
-      1,
-    );
-    assert.equal(
-      (await prisma.notification.findFirst({ where: { containerId } }))?.status,
-      "UNCONFIGURED",
+      0,
     );
     assert.equal(
       (await prisma.container.findUnique({ where: { id: containerId } }))
         ?.status,
       "CHEGADA_PORTAO",
     );
-    await processPosition(base);
+    await processPosition(fix(-80, 0.01));
+    await processPosition(fix(-75, 0.0028)); // Boundary uncertainty clears the exit candidate.
+    await processPosition(fix(-60, 0.01));
+    await processPosition(fix(-90)); // Out-of-order fix cannot undo newer evidence.
+    await processPosition(fix(-50, 0.01));
+    assert.equal(
+      await prisma.notification.count({ where: { containerId } }),
+      0,
+    );
+    await Promise.all([
+      processPosition(fix(-30, 0.01)),
+      processPosition(fix(-30, 0.01)),
+      processPosition(fix(-30, 0.01)),
+    ]);
+    const c = await prisma.container.findUniqueOrThrow({
+      where: { id: containerId },
+    });
+    assert.equal(c.status, "A_CAMINHO_DESTINO");
+    assert.equal(c.estimatedArrivalAt?.getTime(), now - 60000 + 48 * 3600000);
+    assert.equal(
+      await prisma.geofenceEvent.count({
+        where: { containerId, type: "EXIT" },
+      }),
+      1,
+    );
+    assert.equal(
+      await prisma.notification.count({ where: { containerId } }),
+      1,
+    );
+    const n = await prisma.notification.findFirstOrThrow({
+      where: { containerId },
+    });
+    assert.equal(n.status, "UNCONFIGURED");
+    assert.equal(n.kind, "DEPARTURE");
+    const parameters = JSON.parse(n.parameters);
+    assert.equal(parameters.length, 6);
+    const customerToken = parameters[5].split("#")[1];
+    assert.equal((await customerTracking(request(token))).status, 404);
+    assert.equal(await trackingContainer(request(customerToken)), null);
+    const publicResponse = await customerTracking(request(customerToken));
+    assert.equal(publicResponse.status, 200);
+    const visible = await publicResponse.json();
+    assert.equal(visible.code, c.code);
+    assert.equal(
+      visible.estimatedArrivalAt,
+      c.estimatedArrivalAt?.toISOString(),
+    );
+    for (const field of [
+      "client",
+      "driver",
+      "freightValue",
+      "customerTrackingHash",
+      "latitude",
+    ])
+      assert.equal(field in visible, false);
+    await processPosition(fix(-10, 0.01));
     assert.equal(
       await prisma.notification.count({ where: { containerId } }),
       1,
     );
     await prisma.container.update({
       where: { id: containerId },
-      data: { trackingExpiresAt: new Date(0) },
+      data: {
+        customerTrackingExpiresAt: new Date(0),
+        trackingExpiresAt: new Date(0),
+      },
     });
-    assert.equal(await trackingContainer(req), null);
+    assert.equal((await customerTracking(request(customerToken))).status, 404);
+    assert.equal(await trackingContainer(request(token)), null);
   } finally {
     if (containerId) {
       await prisma.notification.deleteMany({ where: { containerId } });
       await prisma.geofenceEvent.deleteMany({ where: { containerId } });
       await prisma.position.deleteMany({ where: { containerId } });
-      await prisma.container.delete({ where: { id: containerId } });
+      await prisma.container.deleteMany({ where: { id: containerId } });
     }
-    if (gateId) await prisma.geofence.delete({ where: { id: gateId } });
-    if (driverId) await prisma.driver.delete({ where: { id: driverId } });
-    if (clientId) await prisma.client.delete({ where: { id: clientId } });
+    if (gateId) await prisma.geofence.deleteMany({ where: { id: gateId } });
+    if (driverId) await prisma.driver.deleteMany({ where: { id: driverId } });
+    if (clientId) await prisma.client.deleteMany({ where: { id: clientId } });
     await prisma.$disconnect();
   }
 });

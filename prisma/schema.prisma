@@ -51,6 +51,14 @@ model Container {
   freightValue String?
   freightCurrency String?
   seal String?
+  transitHours Int?
+  gateEnteredAt DateTime?
+  exitCandidateAt DateTime?
+  lastGeofenceFixAt DateTime?
+  departedAt DateTime?
+  estimatedArrivalAt DateTime?
+  customerTrackingHash String? @unique
+  customerTrackingExpiresAt DateTime?
   document TripDocument?
   clientId   String
   driverId   String?
@@ -102,6 +110,7 @@ model Notification {
   to          String
   body        String
   channel     String   @default("whatsapp")
+  kind        String   @default("STATUS")
   provider    String
   status      String
   error       String?

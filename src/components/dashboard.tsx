@@ -39,6 +39,9 @@ export type Freight = {
   freightValue?: string;
   freightCurrency?: string;
   seal?: string;
+  transitHours?: number;
+  estimatedArrivalAt?: string;
+  departedAt?: string;
   document?: { id: string; filename: string } | null;
   client: { name: string };
   driver: { name: string; plate?: string } | null;
@@ -68,6 +71,7 @@ export type DashboardData = {
   whatsappReady: boolean;
 };
 const labels: Record<string, string> = {
+  CANCELLED: "Substituída pela regra de saída",
   PENDING: "Na fila",
   UNCONFIGURED: "Configuração pendente",
   NO_CONSENT: "Sem autorização",
@@ -123,7 +127,9 @@ export default function Dashboard({
         .includes(query.toLowerCase()),
   );
   const total = data.containers.length,
-    transit = data.containers.filter((c) => c.status === "EM_TRANSITO").length,
+    transit = data.containers.filter((c) =>
+      ["EM_TRANSITO", "A_CAMINHO_DESTINO"].includes(c.status),
+    ).length,
     gateCount = data.containers.filter(
       (c) => c.status === "CHEGADA_PORTAO",
     ).length,
@@ -331,9 +337,7 @@ export default function Dashboard({
                   </svg>
                   <div className="map-marker">
                     <MapPin size={18} weight="fill" />
-                    {gate
-                      ? "Portão de liberação"
-                      : "Cadastre o portão do porto"}
+                    {gate ? "Portão de saída" : "Cadastre o portão do porto"}
                   </div>
                   <span className="map-caption">
                     Visão esquemática ·{" "}
@@ -444,7 +448,7 @@ export default function Dashboard({
             ) : (
               <Empty
                 title="Nenhum aviso registrado"
-                text="As chegadas ao portão aparecerão aqui, junto com o resultado de cada envio."
+                text="As saídas confirmadas do porto aparecerão aqui, junto com o resultado de cada envio."
               />
             )}
           </div>
@@ -682,6 +686,25 @@ export default function Dashboard({
               </dd>
               <dt>Lacre</dt>
               <dd>{selected.seal || "—"}</dd>
+              <dt>Saída do porto</dt>
+              <dd>
+                {selected.departedAt
+                  ? date(selected.departedAt)
+                  : "Aguardando confirmação do GPS"}
+              </dd>
+              <dt>Previsão de chegada</dt>
+              <dd>
+                {selected.estimatedArrivalAt
+                  ? date(selected.estimatedArrivalAt) +
+                    " · Brasília (estimativa)"
+                  : "A confirmar após a saída"}
+              </dd>
+              <dt>Duração planejada</dt>
+              <dd>
+                {selected.transitHours
+                  ? selected.transitHours + " horas"
+                  : "Não informada"}
+              </dd>
               {selected.document && (
                 <>
                   <dt>Documento</dt>
@@ -707,6 +730,68 @@ export default function Dashboard({
               </p>
             ) : (
               <>
+                <h3 className="font-semibold mb-2">
+                  Previsão e acompanhamento do cliente
+                </h3>
+                <form
+                  className="mb-5"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const hours = Number(
+                      new FormData(e.currentTarget).get("hours"),
+                    );
+                    const r = await action(
+                      `/api/containers/${selected.id}/planning`,
+                      "PATCH",
+                      { transitHours: hours },
+                    );
+                    if (r)
+                      setSelected({
+                        ...selected,
+                        transitHours: hours,
+                        estimatedArrivalAt: selected.departedAt
+                          ? new Date(
+                              new Date(selected.departedAt).getTime() +
+                                hours * 3600000,
+                            ).toISOString()
+                          : undefined,
+                      });
+                  }}
+                >
+                  <label>
+                    Duração total prevista desde a saída (horas)
+                    <input
+                      key={selected.id}
+                      name="hours"
+                      type="number"
+                      min={1}
+                      max={720}
+                      required
+                      defaultValue={selected.transitHours}
+                    />
+                  </label>
+                  <button
+                    className="btn secondary mt-2"
+                    disabled={busy || selected.status === "ENTREGUE"}
+                  >
+                    Atualizar previsão
+                  </button>
+                </form>
+                <button
+                  className="btn secondary mb-4"
+                  disabled={busy || !selected.departedAt}
+                  onClick={async () => {
+                    const r = await action(
+                      `/api/containers/${selected.id}/customer-link`,
+                    );
+                    if (r)
+                      setFeedback(
+                        "Link do cliente (substitui o anterior): " + r.url,
+                      );
+                  }}
+                >
+                  Gerar novo link do cliente após saída
+                </button>
                 <h3 className="font-semibold mb-2">Acesso do motorista</h3>
                 <p className="text-sm text-slate-500 mb-4">
                   Link privado válido por 7 dias. Gerar um novo revoga o
@@ -773,11 +858,13 @@ export default function Dashboard({
                       CONTAINER_STATUSES.indexOf(
                         selected.status as ContainerStatus,
                       ),
-                  ).map((s) => (
-                    <option key={s} value={s}>
-                      {STATUS_LABELS[s]}
-                    </option>
-                  ))}
+                  )
+                    .filter((s) => s !== "A_CAMINHO_DESTINO")
+                    .map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_LABELS[s]}
+                      </option>
+                    ))}
                 </select>
               </>
             )}

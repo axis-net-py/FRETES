@@ -133,7 +133,7 @@ function Registration() {
               <b>2. Aprove um template de utilidade.</b>
               <p className="text-slate-500">
                 {
-                  "Corpo sugerido: Olá {{1}}, atualização do container {{2}}: {{3}}. Local: {{4}}."
+                  "Corpo sugerido: Olá {{1}}, container {{2}}: {{3}}. Destino: {{4}}. Previsão de chegada: {{5}}. Acompanhe: {{6}}."
                 }
               </p>
             </li>
@@ -144,7 +144,7 @@ function Registration() {
                   "WHATSAPP_PROVIDER=meta",
                   "META_WHATSAPP_TOKEN",
                   "META_WHATSAPP_PHONE_NUMBER_ID",
-                  "META_WHATSAPP_TEMPLATE",
+                  "META_WHATSAPP_DEPARTURE_TEMPLATE",
                   "META_GRAPH_VERSION",
                   "META_TEMPLATE_LANGUAGE=pt_BR",
                 ].map((x) => (
@@ -156,8 +156,8 @@ function Registration() {
               <b>4. Faça um teste autorizado.</b>
               <p className="text-slate-500">
                 Cadastre o consentimento do cliente e acompanhe o histórico de
-                mensagens após a chegada ao portão. A aceitação pela API não
-                confirma a entrega ao destinatário.
+                mensagens após a saída confirmada do portão. A aceitação pela
+                API não confirma a entrega ao destinatário.
               </p>
             </li>
           </ol>
@@ -186,7 +186,7 @@ function Registration() {
             {tab === "containers"
               ? "Vincule o container ao cliente, motorista e portão que deve disparar o aviso."
               : tab === "gates"
-                ? "Use as coordenadas exatas do portão. Estar na área indica chegada, não liberação aduaneira."
+                ? "Delimite a área do portão de saída de Paranaguá. Entrar registra espera; sair após confirmação do GPS gera o aviso."
                 : "Os dados ficarão disponíveis para vincular aos seus fretes."}
           </p>
           <div className="form-grid">
@@ -238,7 +238,7 @@ function Registration() {
                     required
                     minLength={2}
                     maxLength={120}
-                    placeholder="Ex.: Terminal • Portão de liberação"
+                    defaultValue="Paranaguá · Portão de saída"
                   />
                 </label>
                 <label>
@@ -321,7 +321,7 @@ function Registration() {
                   </select>
                 </label>
                 <label>
-                  Portão de chegada
+                  Portão de saída · Paranaguá
                   <select name="geofenceId" required defaultValue="">
                     <option value="" disabled>
                       Selecione o portão
@@ -339,6 +339,7 @@ function Registration() {
                     name="origin"
                     required
                     maxLength={160}
+                    defaultValue="Porto de Paranaguá"
                     placeholder="Porto / cidade de origem"
                   />
                 </label>
@@ -349,6 +350,17 @@ function Registration() {
                     required
                     maxLength={160}
                     placeholder="Cidade / endereço de entrega"
+                  />
+                </label>
+                <label>
+                  Tempo previsto após a saída (horas)
+                  <input
+                    name="transitHours"
+                    type="number"
+                    required
+                    min={1}
+                    max={720}
+                    placeholder="Inclua paradas e fronteira"
                   />
                 </label>
               </>

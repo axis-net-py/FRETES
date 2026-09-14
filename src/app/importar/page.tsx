@@ -102,6 +102,7 @@ function Importer() {
           whatsapp: f.get("whatsapp") || "",
           consent: f.get("consent") === "on",
           confirmed: f.get("confirmed") === "on",
+          transitHours: Number(f.get("transitHours")),
         }),
       });
       const d = await r.json();
@@ -255,7 +256,7 @@ function Importer() {
               </select>
             </label>
             <label>
-              Portão de chegada
+              Portão de saída · Paranaguá
               <select name="geofenceId" required>
                 <option value="">Selecione o portão</option>
                 {gates
@@ -266,6 +267,17 @@ function Importer() {
                     </option>
                   ))}
               </select>
+            </label>
+            <label>
+              Tempo previsto após a saída (horas)
+              <input
+                name="transitHours"
+                type="number"
+                required
+                min={1}
+                max={720}
+                placeholder="Inclua paradas e fronteira"
+              />
             </label>
             {!clientId && (
               <label>

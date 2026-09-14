@@ -34,7 +34,7 @@ export async function getDashboard() {
         process.env.WHATSAPP_PROVIDER === "meta" &&
         !!process.env.META_WHATSAPP_TOKEN &&
         !!process.env.META_WHATSAPP_PHONE_NUMBER_ID &&
-        !!process.env.META_WHATSAPP_TEMPLATE &&
+        !!process.env.META_WHATSAPP_DEPARTURE_TEMPLATE &&
         !!process.env.META_GRAPH_VERSION,
     }),
   );

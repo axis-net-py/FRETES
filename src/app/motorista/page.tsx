@@ -105,8 +105,9 @@ export default function Driver() {
             setError("");
             setLast(new Date().toLocaleTimeString("pt-BR"));
             if (p.triggers?.length) {
-              setTrip((t) => (t ? { ...t, status: "CHEGADA_PORTAO" } : t));
-              stop();
+              const status = p.triggers[p.triggers.length - 1].status;
+              setTrip((t) => (t ? { ...t, status } : t));
+              if (status === "A_CAMINHO_DESTINO") stop();
             }
           } catch (e) {
             if (alive.current)
@@ -180,9 +181,11 @@ export default function Driver() {
             <h2 className="text-center">
               {active
                 ? "GPS ativo"
-                : trip.status === "CHEGADA_PORTAO"
-                  ? "Chegada registrada"
-                  : "Pronto para iniciar"}
+                : trip.status === "A_CAMINHO_DESTINO"
+                  ? "Saída registrada"
+                  : trip.status === "CHEGADA_PORTAO"
+                    ? "Chegada registrada"
+                    : "Pronto para iniciar"}
             </h2>
             <p className="text-center text-xs text-slate-400 mt-2">
               {last
@@ -198,7 +201,7 @@ export default function Driver() {
                   {trip.gate?.name || "Portão não configurado"}
                 </b>
                 <p className="text-xs text-slate-500">
-                  {trip.gate?.radiusM} m de raio para identificar sua chegada.
+                  {trip.gate?.radiusM} m de raio para registrar entrada e saída.
                 </p>
               </div>
             </div>
@@ -211,7 +214,7 @@ export default function Driver() {
               />
               <span className="text-xs text-slate-500">
                 Autorizo compartilhar minha localização com a transportadora
-                durante este frete para registrar a chegada ao portão.
+                durante este frete para registrar entrada e saída do portão.
               </span>
             </label>
             {active ? (
