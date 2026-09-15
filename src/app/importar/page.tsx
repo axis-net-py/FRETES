@@ -27,7 +27,10 @@ function Importer() {
     [drivers, setDrivers] = useState<Row[]>([]),
     [gates, setGates] = useState<Row[]>([]);
   const [clientId, setClientId] = useState(""),
-    [driverId, setDriverId] = useState("");
+    [driverId, setDriverId] = useState(""),
+    [geofenceId, setGeofenceId] = useState(""),
+    [transitHours, setTransitHours] = useState(""),
+    [planning, setPlanning] = useState(false);
   async function reload() {
     const results = await Promise.all(
       ["documents", "clients", "drivers", "geofences"].map(async (p) => {
@@ -61,6 +64,30 @@ function Importer() {
       d.extracted.fields.truckPlate,
     );
     setDriverId(matchedDriver?.id ?? "");
+    setGeofenceId("");
+    setTransitHours("");
+  }
+  async function estimatePlanning(destination: string) {
+    setPlanning(true);
+    try {
+      const response = await fetch("/api/route-estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destination }),
+      });
+      const result = await response.json();
+      if (result.geofenceId) setGeofenceId(result.geofenceId);
+      if (!response.ok) throw new Error(result.error);
+      setTransitHours(String(result.transitHours));
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message + " Informe o tempo manualmente."
+          : "Não foi possível estimar a rota. Informe o tempo manualmente.",
+      );
+    } finally {
+      setPlanning(false);
+    }
   }
   async function upload(file: File) {
     setBusy(true);
@@ -74,7 +101,10 @@ function Importer() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       select(d);
-      await reload();
+      await Promise.all([
+        reload(),
+        estimatePlanning(d.extracted.fields.destination),
+      ]);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
@@ -223,8 +253,14 @@ function Importer() {
             </label>
             <label>
               Portão de saída · Paranaguá
-              <select name="geofenceId" required>
-                <option value="">Selecione o portão</option>
+              <select
+                name="geofenceId"
+                required
+                value={geofenceId}
+                onChange={(e) => setGeofenceId(e.target.value)}
+                disabled={planning}
+              >
+                <option value="">Selecionando automaticamente…</option>
                 {gates
                   .filter((g) => g.active)
                   .map((c) => (
@@ -242,7 +278,10 @@ function Importer() {
                 required
                 min={1}
                 max={720}
-                placeholder="Inclua paradas e fronteira"
+                placeholder={planning ? "Calculando rota…" : "Estimativa da rota + 4 horas"}
+                value={transitHours}
+                onChange={(e) => setTransitHours(e.target.value)}
+                disabled={planning}
               />
             </label>
             {!clientId && (
@@ -272,7 +311,7 @@ function Importer() {
             <input type="checkbox" required name="confirmed" />
             Conferi os dados com o documento original.
           </label>
-          <button disabled={busy} className="btn primary mt-5">
+          <button disabled={busy || planning} className="btn primary mt-5">
             Cadastrar viagem
           </button>
         </form>
@@ -305,7 +344,10 @@ function Importer() {
                   <button
                     disabled={busy}
                     className="underline"
-                    onClick={() => select(d)}
+                    onClick={() => {
+                      select(d);
+                      void estimatePlanning(d.extracted.fields.destination);
+                    }}
                   >
                     Conferir
                   </button>
