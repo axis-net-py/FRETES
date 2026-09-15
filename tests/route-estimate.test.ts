@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { estimateRouteHours } from "../src/lib/route-estimate.ts";
+import {
+  estimateRouteHours,
+  findParanaguaGate,
+} from "../src/lib/route-estimate.ts";
 
 test("estimates a truck route and adds four whole hours", async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -50,4 +53,13 @@ test("rejects destinations that cannot be located", async () => {
     ),
     /Destino não localizado/,
   );
+});
+
+test("selects the active Paranagua port gate", () => {
+  const gate = findParanaguaGate([
+    { id: "inactive", name: "Porto de Paranaguá", active: false },
+    { id: "other", name: "Outro portão", active: true },
+    { id: "paranagua", name: "PORTO DE PARANAGUA", active: true },
+  ]);
+  assert.equal(gate?.id, "paranagua");
 });
