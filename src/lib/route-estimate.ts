@@ -1,0 +1,70 @@
+export type RouteOrigin = {
+  latitude: number;
+  longitude: number;
+};
+
+type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+export class RouteEstimateError extends Error {}
+
+export async function estimateRouteHours(
+  origin: RouteOrigin,
+  destination: string,
+  apiKey: string,
+  fetcher: FetchLike = fetch,
+) {
+  const headers = { Authorization: apiKey, Accept: "application/json" };
+  const geocode = await fetcher(
+    "https://api.openrouteservice.org/geocode/search?" +
+      new URLSearchParams({
+        text: destination,
+        "boundary.country": "BR,PY",
+        size: "1",
+      }),
+    { headers, signal: AbortSignal.timeout(12_000) },
+  );
+  if (!geocode.ok)
+    throw new RouteEstimateError(
+      "Não foi possível localizar o destino automaticamente.",
+    );
+
+  const geocodeResult = await geocode.json();
+  const coordinates = geocodeResult.features?.[0]?.geometry?.coordinates;
+  if (
+    !Array.isArray(coordinates) ||
+    coordinates.length < 2 ||
+    !coordinates.every(Number.isFinite)
+  )
+    throw new RouteEstimateError(
+      "Destino não localizado. Confira o texto extraído do documento.",
+    );
+
+  const directions = await fetcher(
+    "https://api.openrouteservice.org/v2/directions/driving-hgv",
+    {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(20_000),
+      body: JSON.stringify({
+        coordinates: [
+          [origin.longitude, origin.latitude],
+          coordinates,
+        ],
+      }),
+    },
+  );
+  if (!directions.ok)
+    throw new RouteEstimateError(
+      "Não foi possível calcular a rota até o destino.",
+    );
+
+  const directionsResult = await directions.json();
+  const duration = directionsResult.routes?.[0]?.summary?.duration;
+  if (!Number.isFinite(duration) || duration <= 0)
+    throw new RouteEstimateError("O serviço não retornou uma duração válida.");
+
+  return Math.ceil(duration / 3600) + 4;
+}
