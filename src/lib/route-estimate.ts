@@ -3,6 +3,22 @@ export type RouteOrigin = {
   longitude: number;
 };
 
+export type GateCandidate = RouteOrigin & {
+  id: string;
+  name: string;
+  active: boolean;
+};
+
+export function findParanaguaGate<T extends GateCandidate>(gates: T[]) {
+  return gates.find((gate) => {
+    const name = gate.name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+    return gate.active && name.includes("PARANAGUA");
+  });
+}
+
 type FetchLike = (
   input: string | URL | Request,
   init?: RequestInit,
