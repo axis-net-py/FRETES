@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
+import { dashboardGlobalSatState } from "./globalsat-status";
 export async function getDashboard() {
-  const [containers, clients, drivers, gates, notifications] =
+  const [containers, clients, drivers, gates, notifications, globalSatState] =
     await Promise.all([
       prisma.container.findMany({
         orderBy: { updatedAt: "desc" },
@@ -19,6 +20,10 @@ export async function getDashboard() {
         orderBy: { createdAt: "desc" },
         include: { container: { select: { code: true } } },
       }),
+      prisma.integrationState.findUnique({
+        where: { provider: "GLOBALSAT" },
+        select: { lastSucceededAt: true, lastError: true },
+      }),
     ]);
   return JSON.parse(
     JSON.stringify({
@@ -30,6 +35,10 @@ export async function getDashboard() {
       drivers,
       gates,
       notifications,
+      globalSatSync: dashboardGlobalSatState(
+        globalSatState,
+        !!process.env.GLOBALSAT_CLIENT_ID && !!process.env.GLOBALSAT_CLIENT_SECRET,
+      ),
       whatsappReady:
         process.env.WHATSAPP_PROVIDER === "meta" &&
         !!process.env.META_WHATSAPP_TOKEN &&

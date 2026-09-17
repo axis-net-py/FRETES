@@ -28,6 +28,7 @@ import {
   STATUS_LABELS,
   ContainerStatus,
 } from "@/lib/status";
+import type { GlobalSatDashboardState } from "@/lib/globalsat-status";
 export type Freight = {
   id: string;
   code: string;
@@ -73,6 +74,7 @@ export type DashboardData = {
     createdAt: string;
     container: { code: string };
   }[];
+  globalSatSync: GlobalSatDashboardState;
   whatsappReady: boolean;
 };
 const labels: Record<string, string> = {
@@ -123,6 +125,27 @@ export default function Dashboard({
     if (demo) return;
     const timer = setInterval(() => router.refresh(), 30000);
     return () => clearInterval(timer);
+  }, [demo, router]);
+  useEffect(() => {
+    if (demo) return;
+    const controller = new AbortController();
+    const synchronize = async () => {
+      try {
+        const response = await fetch("/api/integrations/globalsat/sync", {
+          method: "POST",
+          signal: controller.signal,
+        });
+        if (response.ok) router.refresh();
+      } catch {
+        // The sanitized server status is shown after the next refresh.
+      }
+    };
+    void synchronize();
+    const timer = setInterval(() => void synchronize(), 60000);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
   }, [demo, router]);
   const rows = data.containers.filter(
     (c) =>
@@ -592,7 +615,17 @@ export default function Dashboard({
             <span>
               {rows.length} de {total} fretes
             </span>
-            <span>Rastreamento com consentimento do motorista</span>
+            <span>
+              {demo
+                ? "Rastreamento demonstrativo"
+                : !data.globalSatSync.configured
+                  ? "GlobalSAT não configurada"
+                  : data.globalSatSync.status === "error"
+                    ? "GlobalSAT com falha de sincronização"
+                    : data.globalSatSync.lastSyncAt
+                      ? `GlobalSAT sincronizada · ${date(data.globalSatSync.lastSyncAt)}`
+                      : "GlobalSAT aguardando sincronização"}
+            </span>
           </div>
         </section>
       )}

@@ -57,9 +57,21 @@ test("rejects destinations that cannot be located", async () => {
 
 test("selects the active Paranagua port gate", () => {
   const gate = findParanaguaGate([
-    { id: "inactive", name: "Porto de Paranaguá", active: false },
-    { id: "other", name: "Outro portão", active: true },
-    { id: "paranagua", name: "PORTO DE PARANAGUA", active: true },
+    {
+      id: "inactive",
+      name: "Porto de Paranaguá",
+      active: false,
+      latitude: 0,
+      longitude: 0,
+    },
+    { id: "other", name: "Outro portão", active: true, latitude: 0, longitude: 0 },
+    {
+      id: "paranagua",
+      name: "PORTO DE PARANAGUA",
+      active: true,
+      latitude: -25.515,
+      longitude: -48.522,
+    },
   ]);
   assert.equal(gate?.id, "paranagua");
 });

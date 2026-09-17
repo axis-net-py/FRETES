@@ -10,6 +10,7 @@ Controle de fretes de containers com painel administrativo, rastreamento GPS por
 - Containers, busca, filtros, exportação CSV e avanço manual de etapas.
 - Link privado por frete, válido por 7 dias, revogável ao gerar outro. A conclusão do frete revoga o link.
 - Rastreamento voluntário: botão iniciar/parar e permissão do sistema operacional.
+- Rastreamento GlobalSAT automático por placa para fretes ativos, com GPS do celular como alternativa.
 - Entrada confiável no portão: posição recente, margem de precisão e atualização atômica no PostgreSQL.
 - Registro de evento e notificação na mesma transação, com proteção contra posições concorrentes/repetidas.
 - Histórico de avisos e tentativa manual para falhas ou configurações pendentes.
@@ -52,6 +53,27 @@ Chegada física **não equivale à liberação aduaneira ou autorização de ret
 O servidor só aceita posições com até 120 segundos, no máximo 30 segundos no futuro, precisão até o menor valor entre 100 m e metade do raio. Toda a área de incerteza deve estar dentro do raio. Uma leitura inicial já dentro da área conta como chegada. GPS enviado pelo dispositivo não é prova antifraude.
 
 Cada cadastro representa uma operação e tem código de container único. O MVP não modela múltiplas viagens históricas para o mesmo código; evolua para entidades separadas Container/Viagem se houver esse requisito.
+
+## GlobalSAT
+
+A integração é somente de leitura. Ela relaciona a placa do cavalo cadastrada no frete (ou, como alternativa, a placa do motorista) com o veículo GlobalSAT, importa posições em ordem cronológica e usa a mesma geofence do portão. O vínculo exige igualdade exata após remover espaços, hífens e pontuação.
+
+Configure apenas como segredos do servidor:
+
+| Variável | Conteúdo |
+| --- | --- |
+| `GLOBALSAT_CLIENT_ID` | Identificador OAuth fornecido pela GlobalSAT |
+| `GLOBALSAT_CLIENT_SECRET` | Segredo OAuth fornecido pela GlobalSAT |
+| `GLOBALSAT_SYNC_SECRET` | Valor aleatório com pelo menos 32 caracteres |
+
+O painel autenticado solicita uma sincronização ao abrir e depois a cada minuto. Para manter a atualização sem o painel aberto, o workflow `.github/workflows/globalsat-sync.yml` chama a rota protegida a cada cinco minutos. Cadastre estes secrets no repositório GitHub:
+
+| Secret | Conteúdo |
+| --- | --- |
+| `APP_URL` | URL pública do sistema, sem barra final |
+| `GLOBALSAT_SYNC_SECRET` | Exatamente o mesmo valor configurado no servidor |
+
+A GlobalSAT não informa precisão horizontal neste endpoint; por segurança, cada posição importada usa uma incerteza conservadora de 50 metros. Falhas preservam o cursor anterior, e posições repetidas não criam novos eventos.
 
 ## WhatsApp
 

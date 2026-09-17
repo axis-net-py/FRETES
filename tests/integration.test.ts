@@ -5,6 +5,8 @@ import { prisma } from "../src/lib/prisma";
 import { processPosition } from "../src/lib/geofence-engine";
 import { trackingContainer, hashToken } from "../src/lib/tracking";
 import { GET as customerTracking } from "../src/app/api/customer-tracking/route";
+import { syncGlobalSat } from "../src/lib/globalsat-sync";
+import type { GlobalSatClient } from "../src/lib/globalsat-client";
 test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA and isolated customer access", async () => {
   if (process.env.WHATSAPP_PROVIDER === "meta")
     throw new Error("Tests require disabled WhatsApp");
@@ -14,6 +16,9 @@ test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA 
     gateId = "",
     containerId = "";
   try {
+    await prisma.integrationState.deleteMany({
+      where: { provider: "GLOBALSAT" },
+    });
     clientId = (
       await prisma.client.create({
         data: {
@@ -25,7 +30,11 @@ test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA 
     ).id;
     driverId = (
       await prisma.driver.create({
-        data: { name: "TEST-" + suffix, phone: "+15555550124" },
+        data: {
+          name: "TEST-" + suffix,
+          phone: "+15555550124",
+          plate: "TST" + suffix.replaceAll("-", "").slice(0, 4),
+        },
       })
     ).id;
     gateId = (
@@ -68,6 +77,43 @@ test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA 
       accuracyM,
       recordedAt: new Date(now + seconds * 1000).toISOString(),
     });
+    const providerPositionId = Math.floor(now / 1000);
+    const driver = await prisma.driver.findUniqueOrThrow({
+      where: { id: driverId },
+    });
+    const globalSat = {
+      listTargets: async () => [
+        {
+          id: 991001,
+          plate: driver.plate,
+          gmtOffset: -3,
+          position: {
+            id: providerPositionId,
+            latitude: 0.01,
+            longitude: 0,
+            recordedAt: new Date(now - 116000),
+          },
+        },
+      ],
+      getTrackingData: async () => ({
+        nextStartId: BigInt(providerPositionId),
+        rows: 0,
+        positions: [],
+      }),
+    } as unknown as GlobalSatClient;
+    const firstSync = await syncGlobalSat({ client: globalSat });
+    const secondSync = await syncGlobalSat({ client: globalSat });
+    assert.equal(firstSync.processedPositions, 1);
+    assert.equal(secondSync.duplicatePositions, 1);
+    assert.equal(
+      await prisma.position.count({
+        where: {
+          source: "GLOBALSAT",
+          externalId: String(providerPositionId),
+        },
+      }),
+      1,
+    );
     await processPosition(fix(-110, 0, 900));
     await assert.rejects(
       processPosition({ ...fix(-109), driverId: "unrelated" }),
@@ -177,6 +223,9 @@ test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA 
     if (gateId) await prisma.geofence.deleteMany({ where: { id: gateId } });
     if (driverId) await prisma.driver.deleteMany({ where: { id: driverId } });
     if (clientId) await prisma.client.deleteMany({ where: { id: clientId } });
+    await prisma.integrationState.deleteMany({
+      where: { provider: "GLOBALSAT" },
+    });
     await prisma.$disconnect();
   }
 });

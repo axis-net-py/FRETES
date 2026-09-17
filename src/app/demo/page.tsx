@@ -84,6 +84,11 @@ const data: DashboardData = {
       container: { code: "CMAU4187362" },
     },
   ],
+  globalSatSync: {
+    configured: false,
+    status: "pending",
+    lastSyncAt: null,
+  },
   whatsappReady: false,
 };
 export default function Demo() {

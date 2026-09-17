@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { distanceMeters } from "../src/lib/geo.ts";
 import { reliableInside, reliableOutside } from "../src/lib/geofence-policy.ts";
 import { createSession, validSession } from "../src/lib/session.ts";
+import { validPositionTime } from "../src/lib/geofence-engine.ts";
 const gate = { latitude: -23.94, longitude: -46.31, radiusM: 300 };
 const now = Date.now();
 const fix = { ...gate, accuracyM: 15, recordedAt: new Date(now).toISOString() };
@@ -89,4 +90,14 @@ test("exit needs GPS accuracy beyond the gate plus a 50m buffer", () => {
     ),
     false,
   );
+});
+test("trusted GlobalSAT history does not weaken device freshness", () => {
+  const reference = Date.now();
+  const old = new Date(reference - 10 * 60 * 1000).toISOString();
+  const future = new Date(reference + 31000).toISOString();
+  assert.equal(validPositionTime(old, "DEVICE", reference), false);
+  assert.equal(validPositionTime(old, "GLOBALSAT", reference), true);
+  assert.equal(validPositionTime(future, "DEVICE", reference), false);
+  assert.equal(validPositionTime(future, "GLOBALSAT", reference), false);
+  assert.equal(validPositionTime("invalid", "GLOBALSAT", reference), false);
 });

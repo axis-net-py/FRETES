@@ -27,6 +27,28 @@ try {
     (await request("/api/positions", "POST", { latitude: 0 }, false)).status,
     401,
   );
+  assert.equal(
+    (
+      await request(
+        "/api/integrations/globalsat/cron",
+        "POST",
+        undefined,
+        false,
+      )
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await request(
+        "/api/integrations/globalsat/sync",
+        "POST",
+        undefined,
+        false,
+      )
+    ).status,
+    401,
+  );
   const login = await request(
     "/api/auth",
     "POST",
@@ -116,7 +138,7 @@ try {
     401,
   );
   console.log(
-    "PASS: anonymous access blocked; login; all registrations; private tracking; GPS arrival; dashboard rendering; completion revokes token.",
+    "PASS: anonymous access blocked; GlobalSAT routes protected; login; all registrations; private tracking; GPS arrival; dashboard rendering; completion revokes token.",
   );
 } finally {
   if (created.container) {

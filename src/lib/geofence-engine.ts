@@ -11,10 +11,31 @@ export type PositionInput = {
   accuracyM: number;
   recordedAt: string;
 };
-export async function processPosition(input: PositionInput) {
+export type PositionSource = "DEVICE" | "GLOBALSAT";
+export type ProcessPositionOptions = {
+  source?: PositionSource;
+  externalId?: string;
+};
+export function validPositionTime(
+  recordedAt: string,
+  source: PositionSource,
+  now = Date.now(),
+) {
+  const time = new Date(recordedAt).getTime();
+  const age = now - time;
+  return (
+    Number.isFinite(age) &&
+    age >= -30000 &&
+    (source === "GLOBALSAT" || age <= 120000)
+  );
+}
+export async function processPosition(
+  input: PositionInput,
+  options: ProcessPositionOptions = {},
+) {
+  const source = options.source || "DEVICE";
   const fixAt = new Date(input.recordedAt);
-  const age = Date.now() - fixAt.getTime();
-  if (!Number.isFinite(age) || age > 120000 || age < -30000) return [];
+  if (!validPositionTime(input.recordedAt, source)) return [];
   const outcome = await prisma.$transaction(
     async (tx) => {
       // Serialize fixes so concurrent, repeated or out-of-order samples cannot confirm a false exit.
@@ -24,6 +45,14 @@ export async function processPosition(input: PositionInput) {
         include: { client: true },
       });
       if (!c) throw new Error("Frete não vinculado ao motorista");
+      if (
+        options.externalId &&
+        (await tx.position.findFirst({
+          where: { source, externalId: options.externalId },
+          select: { id: true },
+        }))
+      )
+        return null;
       if (
         c.departedAt ||
         c.status === "ENTREGUE" ||
@@ -35,7 +64,14 @@ export async function processPosition(input: PositionInput) {
         ? await tx.geofence.findUnique({ where: { id: c.geofenceId } })
         : null;
       if (!gate?.active) return null;
-      await tx.position.create({ data: { ...input, recordedAt: fixAt } });
+      await tx.position.create({
+        data: {
+          ...input,
+          recordedAt: fixAt,
+          source,
+          externalId: options.externalId,
+        },
+      });
       const inside = reliableInside(input, gate),
         outside = reliableOutside(input, gate);
       const common = { lastGeofenceFixAt: fixAt };
