@@ -43,6 +43,8 @@ export type Freight = {
   freightCurrency?: string;
   seal?: string;
   transitHours?: number;
+  routeDurationSeconds?: number;
+  operationalMarginSeconds?: number;
   estimatedArrivalAt?: string;
   departedAt?: string;
   document?: { id: string; filename: string } | null;
@@ -720,7 +722,12 @@ export default function Dashboard({
                   className="btn danger"
                   disabled={busy}
                   onClick={async () => {
-                    if (!window.confirm(`Excluir definitivamente o frete ${selected.code}? Os eventos e avisos vinculados também serão excluídos.`)) return;
+                    if (
+                      !window.confirm(
+                        `Excluir definitivamente o frete ${selected.code}? Os eventos e avisos vinculados também serão excluídos.`,
+                      )
+                    )
+                      return;
                     const result = await action(
                       "/api/containers/" + selected.id,
                       "DELETE",
@@ -771,33 +778,70 @@ export default function Dashboard({
                   ].map(([name, label, value]) => (
                     <label key={name}>
                       {label}
-                      <input name={name} defaultValue={value || ""} required={["code", "origin", "destination"].includes(name!)} />
+                      <input
+                        name={name}
+                        defaultValue={value || ""}
+                        required={["code", "origin", "destination"].includes(
+                          name!,
+                        )}
+                      />
                     </label>
                   ))}
                   <label>
                     Cliente
-                    <select name="clientId" defaultValue={selected.clientId} required>
-                      {data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+                    <select
+                      name="clientId"
+                      defaultValue={selected.clientId}
+                      required
+                    >
+                      {data.clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label>
                     Motorista
-                    <select name="driverId" defaultValue={selected.driverId} required>
-                      {data.drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
+                    <select
+                      name="driverId"
+                      defaultValue={selected.driverId}
+                      required
+                    >
+                      {data.drivers.map((driver) => (
+                        <option key={driver.id} value={driver.id}>
+                          {driver.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <label>
                     Portão
-                    <select name="geofenceId" defaultValue={selected.geofenceId} required>
-                      {data.gates.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                    </select>
+                    <input
+                      name="geofenceId"
+                      type="hidden"
+                      value={selected.geofenceId || ""}
+                    />
+                    <input
+                      readOnly
+                      value="Porto de Paranaguá · seleção automática"
+                    />
                   </label>
                   <label>
                     Tempo previsto (horas)
-                    <input name="transitHours" type="number" min={1} max={720} defaultValue={selected.transitHours} required />
+                    <input
+                      name="transitHours"
+                      type="number"
+                      min={1}
+                      max={720}
+                      defaultValue={selected.transitHours}
+                      required
+                    />
                   </label>
                 </div>
-                <button className="btn primary mt-4" disabled={busy}>Salvar alterações</button>
+                <button className="btn primary mt-4" disabled={busy}>
+                  Salvar alterações
+                </button>
               </form>
             )}
             <dl className="detail-list">
@@ -841,6 +885,18 @@ export default function Dashboard({
                   ? selected.transitHours + " horas"
                   : "Não informada"}
               </dd>
+              {selected.routeDurationSeconds && (
+                <>
+                  <dt>Rota e margem operacional</dt>
+                  <dd>
+                    {(selected.routeDurationSeconds / 3600).toFixed(1)} h +{" "}
+                    {((selected.operationalMarginSeconds || 0) / 3600).toFixed(
+                      1,
+                    )}{" "}
+                    h
+                  </dd>
+                </>
+              )}
               {selected.document && (
                 <>
                   <dt>Documento</dt>

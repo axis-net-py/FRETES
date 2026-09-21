@@ -23,6 +23,7 @@ export async function POST(req: Request) {
   try {
     const gates = await prisma.geofence.findMany({
       where: { active: true },
+      orderBy: { createdAt: "asc" },
       select: {
         id: true,
         name: true,
@@ -49,12 +50,14 @@ export async function POST(req: Request) {
       );
 
     try {
-      const transitHours = await estimateRouteHours(
+      const estimate = await estimateRouteHours(
         gate,
         parsed.data.destination,
         apiKey,
+        fetch,
+        Number(process.env.ROUTE_OPERATIONAL_MARGIN_HOURS || 4),
       );
-      return NextResponse.json({ geofenceId: gate.id, transitHours });
+      return NextResponse.json({ geofenceId: gate.id, ...estimate });
     } catch (error) {
       if (error instanceof RouteEstimateError)
         return NextResponse.json(

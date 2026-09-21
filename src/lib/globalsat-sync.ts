@@ -8,6 +8,7 @@ import {
 } from "./globalsat-client";
 import { processPosition } from "./geofence-engine";
 import { prisma } from "./prisma";
+import { globalSatTokenStore } from "./globalsat-token-store";
 
 const PROVIDER = "GLOBALSAT";
 const LOCK_MS = 120000;
@@ -97,7 +98,7 @@ const databaseRepository: GlobalSatSyncRepository = {
   async listActiveTrips() {
     const rows = await prisma.container.findMany({
       where: {
-        status: { in: ["EM_TRANSITO", "CHEGADA_PORTAO"] },
+        status: { in: ["EM_TRANSITO", "CHEGADA_PORTAO", "A_CAMINHO_DESTINO"] },
         driverId: { not: null },
         geofenceId: { not: null },
       },
@@ -149,7 +150,12 @@ function configuredClient() {
   const clientId = process.env.GLOBALSAT_CLIENT_ID;
   const clientSecret = process.env.GLOBALSAT_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new GlobalSatError("AUTH");
-  return new GlobalSatClient({ clientId, clientSecret });
+  return new GlobalSatClient({
+    clientId,
+    clientSecret,
+    baseUrl: process.env.GLOBALSAT_BASE_URL,
+    tokenStore: globalSatTokenStore(clientId, clientSecret),
+  });
 }
 
 function errorCategory(error: unknown) {
@@ -178,7 +184,9 @@ export async function syncGlobalSat(
     startedAt,
     new Date(startedAt.getTime() + LOCK_MS),
   );
-  const empty = (status: GlobalSatSyncSummary["status"]): GlobalSatSyncSummary => ({
+  const empty = (
+    status: GlobalSatSyncSummary["status"],
+  ): GlobalSatSyncSummary => ({
     status,
     activeTrips: 0,
     matchedTrips: 0,
@@ -233,23 +241,31 @@ export async function syncGlobalSat(
       for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber += 1) {
         const page = await client.getTrackingData({
           targetIds,
+          // A fleet query applies the same wall-clock window in each vehicle's
+          // timezone. Use the earliest offset so no recent positions are missed.
+          gmtOffset: Math.min(...matches.map((m) => m.target.gmtOffset)),
           ...(nextCursor === null
             ? { initialSince: new Date(startedAt.getTime() - 15 * 60 * 1000) }
             : { fromId: nextCursor }),
           limit: PAGE_LIMIT,
         });
-        nextCursor = page.nextStartId;
+        if (nextCursor === null || page.nextStartId > nextCursor)
+          nextCursor = page.nextStartId;
         receivedPositions += page.positions.length;
         for (const position of page.positions) {
           const target = targetById.get(position.targetId);
           if (!target) continue;
           for (const trip of tripsByTarget.get(position.targetId) || []) {
-            const fixes = fixesByTrip.get(trip.id) || new Map<string, PendingFix>();
+            const fixes =
+              fixesByTrip.get(trip.id) || new Map<string, PendingFix>();
             const externalId = position.id.toString();
             if (!fixes.has(externalId))
               fixes.set(externalId, {
                 externalId,
-                recordedAt: parseGlobalSatDate(position.gpsTime, target.gmtOffset),
+                recordedAt: parseGlobalSatDate(
+                  position.gpsTime,
+                  target.gmtOffset,
+                ),
                 latitude: position.latitude,
                 longitude: position.longitude,
               });

@@ -52,6 +52,12 @@ model Container {
   freightCurrency String?
   seal String?
   transitHours Int?
+  routeDurationSeconds Int?
+  operationalMarginSeconds Int?
+  truckVehicleId String?
+  trailerVehicleId String?
+  truckVehicle Vehicle? @relation("Truck", fields: [truckVehicleId], references: [id])
+  trailerVehicle Vehicle? @relation("Trailer", fields: [trailerVehicleId], references: [id])
   gateEnteredAt DateTime?
   exitCandidateAt DateTime?
   lastGeofenceFixAt DateTime?
@@ -99,7 +105,18 @@ model IntegrationState {
   lastSucceededAt DateTime?
   lastError       String?
   lastSummary     Json?
+  encryptedToken String?
+  tokenExpiresAt DateTime?
+  credentialFingerprint String?
   updatedAt       DateTime @updatedAt
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+  plate String @unique
+  createdAt DateTime @default(now())
+  truckTrips Container[] @relation("Truck")
+  trailerTrips Container[] @relation("Trailer")
 }
 
 model GeofenceEvent {

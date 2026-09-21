@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
+import { adminRequestError } from "@/lib/admin-request";
+import { findParanaguaGate } from "@/lib/route-estimate";
+import { normalizePlate } from "@/lib/driver-match";
 
 const schema = z
   .object({
@@ -12,7 +15,7 @@ const schema = z
       .regex(/^[A-Z]{4}\d{7}$/, "Use 4 letras e 7 números no container."),
     clientId: z.string().min(1, "Selecione o cliente."),
     driverId: z.string().min(1, "Selecione o motorista."),
-    geofenceId: z.string().min(1, "Selecione o portão."),
+    geofenceId: z.string().optional(),
     origin: z.string().trim().max(160),
     destination: z.string().trim().max(160),
     crt: z.string().trim().max(80),
@@ -42,6 +45,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const unauthorized = await adminRequestError(req);
+  if (unauthorized) return unauthorized;
   const { id } = await params;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success)
@@ -51,8 +56,8 @@ export async function PATCH(
     );
 
   try {
-    const [container, client, driver, geofence] = await Promise.all([
-      prisma.container.findUnique({ where: { id }, select: { id: true } }),
+    const [container, client, driver] = await Promise.all([
+      prisma.container.findUnique({ where: { id } }),
       prisma.client.findUnique({
         where: { id: parsed.data.clientId },
         select: { id: true },
@@ -61,34 +66,92 @@ export async function PATCH(
         where: { id: parsed.data.driverId },
         select: { id: true },
       }),
-      prisma.geofence.findFirst({
-        where: { id: parsed.data.geofenceId, active: true },
-        select: { id: true },
-      }),
     ]);
     if (!container)
-      return NextResponse.json({ error: "Frete não encontrado." }, { status: 404 });
-    if (!client || !driver || !geofence)
       return NextResponse.json(
-        { error: "Cliente, motorista ou portão inválido." },
+        { error: "Frete não encontrado." },
+        { status: 404 },
+      );
+    if (!client || !driver)
+      return NextResponse.json(
+        { error: "Cliente ou motorista inválido." },
         { status: 400 },
       );
 
-    const updated = await prisma.container.update({
-      where: { id },
-      data: parsed.data,
-      include: { client: true, driver: true, document: true },
+    const gate = findParanaguaGate(
+      await prisma.geofence.findMany({
+        where: { active: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    );
+    if (!gate)
+      return NextResponse.json(
+        { error: "Cadastre e ative o portão de Paranaguá." },
+        { status: 422 },
+      );
+    const updated = await prisma.$transaction(async (tx) => {
+      const truckPlate = normalizePlate(parsed.data.truckPlate);
+      const trailerPlate = normalizePlate(parsed.data.trailerPlate);
+      const truck = truckPlate
+        ? await tx.vehicle.upsert({
+            where: { plate: truckPlate },
+            create: { plate: truckPlate },
+            update: {},
+          })
+        : null;
+      const trailer = trailerPlate
+        ? await tx.vehicle.upsert({
+            where: { plate: trailerPlate },
+            create: { plate: trailerPlate },
+            update: {},
+          })
+        : null;
+      const planningChanged =
+        parsed.data.destination !== container.destination ||
+        parsed.data.transitHours !== container.transitHours;
+      return tx.container.update({
+        where: { id },
+        data: {
+          ...parsed.data,
+          geofenceId: gate.id,
+          truckPlate,
+          trailerPlate,
+          truckVehicleId: truck?.id ?? null,
+          trailerVehicleId: trailer?.id ?? null,
+          ...(planningChanged
+            ? { routeDurationSeconds: null, operationalMarginSeconds: null }
+            : {}),
+          ...(container.departedAt
+            ? {
+                estimatedArrivalAt: new Date(
+                  container.departedAt.getTime() +
+                    parsed.data.transitHours * 3600000,
+                ),
+              }
+            : {}),
+        },
+        include: {
+          client: true,
+          driver: true,
+          document: { select: { id: true, filename: true } },
+        },
+      });
     });
-    return NextResponse.json(updated);
+    const { trackingTokenHash, customerTrackingHash, ...response } = updated;
+    void trackingTokenHash;
+    void customerTrackingHash;
+    return NextResponse.json(response);
   } catch (error) {
     return apiError(error);
   }
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const unauthorized = await adminRequestError(req);
+  if (unauthorized) return unauthorized;
   const { id } = await params;
   try {
     const exists = await prisma.container.findUnique({
@@ -96,7 +159,10 @@ export async function DELETE(
       select: { id: true },
     });
     if (!exists)
-      return NextResponse.json({ error: "Frete não encontrado." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Frete não encontrado." },
+        { status: 404 },
+      );
 
     await prisma.$transaction(async (tx) => {
       await tx.notification.deleteMany({ where: { containerId: id } });

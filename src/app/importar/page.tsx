@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import Shell from "@/components/shell";
-import { findMatchingDriver } from "@/lib/driver-match";
+import { findMatchingDriver, normalizeName } from "@/lib/driver-match";
 import {
   DocumentFields,
   emptyFields,
@@ -23,6 +23,10 @@ function Importer() {
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   const [provider, setProvider] = useState("none");
+  const [routeDetails, setRouteDetails] = useState<{
+    routeDurationSeconds: number;
+    operationalMarginSeconds: number;
+  } | null>(null);
   const [clients, setClients] = useState<Row[]>([]),
     [drivers, setDrivers] = useState<Row[]>([]),
     [gates, setGates] = useState<Row[]>([]);
@@ -54,8 +58,7 @@ function Importer() {
     setFields({ ...emptyFields, ...d.extracted.fields });
     const matches = clients.filter(
       (c) =>
-        c.name.trim().toUpperCase() ===
-        d.extracted.fields.clientName.trim().toUpperCase(),
+        normalizeName(c.name) === normalizeName(d.extracted.fields.clientName),
     );
     setClientId(matches.length === 1 ? matches[0].id : "");
     const matchedDriver = findMatchingDriver(
@@ -64,10 +67,15 @@ function Importer() {
       d.extracted.fields.truckPlate,
     );
     setDriverId(matchedDriver?.id ?? "");
-    setGeofenceId("");
+    setGeofenceId(
+      gates.find((g) => g.active && normalizeName(g.name).includes("PARANAGUA"))
+        ?.id || "",
+    );
     setTransitHours("");
+    setRouteDetails(null);
   }
   async function estimatePlanning(destination: string) {
+    setRouteDetails(null);
     setPlanning(true);
     try {
       const response = await fetch("/api/route-estimate", {
@@ -79,6 +87,10 @@ function Importer() {
       if (result.geofenceId) setGeofenceId(result.geofenceId);
       if (!response.ok) throw new Error(result.error);
       setTransitHours(String(result.transitHours));
+      setRouteDetails({
+        routeDurationSeconds: result.routeDurationSeconds,
+        operationalMarginSeconds: result.operationalMarginSeconds,
+      });
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -125,11 +137,12 @@ function Importer() {
           fields,
           clientId,
           driverId,
-          geofenceId: f.get("geofenceId") || "",
+          geofenceId,
           whatsapp: f.get("whatsapp") || "",
           consent: f.get("consent") === "on",
           confirmed: f.get("confirmed") === "on",
           transitHours: Number(f.get("transitHours")),
+          ...routeDetails,
         }),
       });
       const d = await r.json();
@@ -160,7 +173,8 @@ function Importer() {
         <p>
           Selecione um PDF, JPG ou PNG de até 4 MB. A leitura começa
           automaticamente e preenche os dados da viagem, cliente, motorista,
-          veículo, destino e container com {provider === "gemini" ? "Google Gemini" : "OpenAI"}.
+          veículo, destino e container com{" "}
+          {provider === "gemini" ? "Google Gemini" : "OpenAI"}.
         </p>
         {!ready && (
           <p className="feedback">
@@ -183,7 +197,9 @@ function Importer() {
             }}
           />
         </label>
-        {busy && <p className="feedback">Lendo documento e preenchendo os dados…</p>}
+        {busy && (
+          <p className="feedback">Lendo documento e preenchendo os dados…</p>
+        )}
       </section>
       {message && (
         <p role="status" className="feedback">
@@ -209,9 +225,17 @@ function Importer() {
                 {fieldLabels[k]}
                 <input
                   value={fields[k]}
-                  onChange={(e) =>
-                    setFields({ ...fields, [k]: e.target.value })
-                  }
+                  disabled={busy || planning}
+                  onChange={(e) => {
+                    setFields({ ...fields, [k]: e.target.value });
+                    if (k === "destination") {
+                      setRouteDetails(null);
+                      setTransitHours("");
+                    }
+                    if (k === "clientName") setClientId("");
+                    if (k === "driverName" || k === "truckPlate")
+                      setDriverId("");
+                  }}
                   required={[
                     "clientName",
                     "code",
@@ -229,7 +253,7 @@ function Importer() {
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
               >
-                <option value="">Criar cliente com o nome acima</option>
+                <option value="">Localizar ou criar automaticamente</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -243,7 +267,7 @@ function Importer() {
                 value={driverId}
                 onChange={(e) => setDriverId(e.target.value)}
               >
-                <option value="">Criar motorista automaticamente</option>
+                <option value="">Localizar ou criar automaticamente</option>
                 {drivers.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} · {c.plate}
@@ -253,22 +277,13 @@ function Importer() {
             </label>
             <label>
               Portão de saída · Paranaguá
-              <select
-                name="geofenceId"
-                required
-                value={geofenceId}
-                onChange={(e) => setGeofenceId(e.target.value)}
-                disabled={planning}
-              >
-                <option value="">Selecionando automaticamente…</option>
-                {gates
-                  .filter((g) => g.active)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
+              <input
+                readOnly
+                value={
+                  gates.find((g) => g.id === geofenceId)?.name ||
+                  "Porto de Paranaguá · seleção automática"
+                }
+              />
             </label>
             <label>
               Tempo previsto após a saída (horas)
@@ -278,12 +293,35 @@ function Importer() {
                 required
                 min={1}
                 max={720}
-                placeholder={planning ? "Calculando rota…" : "Estimativa da rota + 4 horas"}
+                placeholder={
+                  planning ? "Calculando rota…" : "Informe a estimativa total"
+                }
                 value={transitHours}
-                onChange={(e) => setTransitHours(e.target.value)}
+                onChange={(e) => {
+                  setTransitHours(e.target.value);
+                  setRouteDetails(null);
+                }}
                 disabled={planning}
               />
             </label>
+            <div>
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={busy || planning || !fields.destination}
+                onClick={() => void estimatePlanning(fields.destination)}
+              >
+                Recalcular rota
+              </button>
+              {routeDetails && (
+                <p>
+                  Rota: {(routeDetails.routeDurationSeconds / 3600).toFixed(1)}{" "}
+                  h · margem operacional:{" "}
+                  {(routeDetails.operationalMarginSeconds / 3600).toFixed(1)} h.
+                  Total arredondado para cima.
+                </p>
+              )}
+            </div>
             {!clientId && (
               <label>
                 WhatsApp do novo cliente (opcional)
@@ -342,7 +380,7 @@ function Importer() {
                 </a>
                 {!d.containerId && (
                   <button
-                    disabled={busy}
+                    disabled={busy || planning}
                     className="underline"
                     onClick={() => {
                       select(d);

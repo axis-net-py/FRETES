@@ -12,7 +12,7 @@
     "postinstall": "prisma generate",
     "db:deploy": "prisma migrate deploy",
     "test": "node --env-file-if-exists=.env --import tsx --test tests/geofence.test.ts tests/documents.test.ts tests/route-estimate.test.ts tests/globalsat-client.test.ts tests/globalsat-sync.test.ts tests/globalsat-routes.test.ts",
-    "test:integration": "node --env-file=.env --import tsx --test tests/integration.test.ts"
+    "test:integration": "node --env-file-if-exists=.env.test --import tsx --test --test-concurrency=1 tests/integration.test.ts tests/import-integration.test.ts"
   },
   "dependencies": {
     "@capacitor/core": "^6.2.2",

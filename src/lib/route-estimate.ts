@@ -26,11 +26,27 @@ type FetchLike = (
 
 export class RouteEstimateError extends Error {}
 
+export function routePlanning(routeDurationSeconds: number, marginHours = 4) {
+  if (!Number.isFinite(marginHours) || marginHours <= 0 || marginHours > 240)
+    throw new RouteEstimateError(
+      "Configure uma margem operacional entre 0 e 240 horas, maior que zero.",
+    );
+  const operationalMarginSeconds = Math.ceil(marginHours * 3600);
+  return {
+    routeDurationSeconds: Math.ceil(routeDurationSeconds),
+    operationalMarginSeconds,
+    transitHours: Math.ceil(
+      (routeDurationSeconds + operationalMarginSeconds) / 3600,
+    ),
+  };
+}
+
 export async function estimateRouteHours(
   origin: RouteOrigin,
   destination: string,
   apiKey: string,
   fetcher: FetchLike = fetch,
+  marginHours = 4,
 ) {
   const headers = { Authorization: apiKey, Accept: "application/json" };
   const geocode = await fetcher(
@@ -65,10 +81,7 @@ export async function estimateRouteHours(
       headers: { ...headers, "Content-Type": "application/json" },
       signal: AbortSignal.timeout(20_000),
       body: JSON.stringify({
-        coordinates: [
-          [origin.longitude, origin.latitude],
-          coordinates,
-        ],
+        coordinates: [[origin.longitude, origin.latitude], coordinates],
       }),
     },
   );
@@ -82,5 +95,5 @@ export async function estimateRouteHours(
   if (!Number.isFinite(duration) || duration <= 0)
     throw new RouteEstimateError("O serviço não retornou uma duração válida.");
 
-  return Math.ceil(duration / 3600) + 4;
+  return routePlanning(duration, marginHours);
 }

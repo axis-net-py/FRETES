@@ -3,11 +3,7 @@ import { z } from "zod";
 const DEFAULT_BASE_URL = "https://apis.rastreioglobalsat.com";
 
 export type GlobalSatErrorCode =
-  | "AUTH"
-  | "RATE_LIMITED"
-  | "TIMEOUT"
-  | "UPSTREAM"
-  | "INVALID_RESPONSE";
+  "AUTH" | "RATE_LIMITED" | "TIMEOUT" | "UPSTREAM" | "INVALID_RESPONSE";
 
 export class GlobalSatError extends Error {
   constructor(public readonly code: GlobalSatErrorCode) {
@@ -42,15 +38,11 @@ export type GlobalSatTrackingPage = {
   positions: GlobalSatTrackedPosition[];
 };
 
-const tokenSchema = z
-  .array(
-    z.object({
-      access_token: z.string().min(1),
-      token_type: z.string().min(1),
-      expires_in: z.coerce.number().int().positive(),
-    }),
-  )
-  .length(1);
+const tokenSchema = z.object({
+  access_token: z.string().min(1),
+  token_type: z.literal("Bearer"),
+  expires_in: z.coerce.number().int().positive(),
+});
 
 const targetSchema = z.array(
   z.object({
@@ -70,7 +62,10 @@ const targetSchema = z.array(
 );
 
 const trackedPositionSchema = z.object({
-  id_tracked_position: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]),
+  id_tracked_position: z.union([
+    z.number().int().nonnegative(),
+    z.string().regex(/^\d+$/),
+  ]),
   target_id: z.coerce.number().int().positive(),
   gps_time: z.string(),
   lat: z.coerce.number().min(-90).max(90),
@@ -78,14 +73,20 @@ const trackedPositionSchema = z.object({
 });
 
 const trackingPageSchema = z.object({
-  NextStartID: z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]),
+  NextStartID: z.union([
+    z.number().int().nonnegative(),
+    z.string().regex(/^\d+$/),
+  ]),
   rows: z.coerce.number().int().nonnegative(),
   status: z.literal("ok"),
   query_result: z.array(trackedPositionSchema),
 });
 
 export function normalizePlate(value: string) {
-  return value.normalize("NFKD").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return value
+    .normalize("NFKD")
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase();
 }
 
 export function parseGlobalSatDate(value: string, gmtOffset: number) {
@@ -117,9 +118,10 @@ export function parseGlobalSatDate(value: string, gmtOffset: number) {
   return new Date(localWallClock - gmtOffset * 3600000);
 }
 
-function formatQueryDate(date: Date) {
+function formatQueryDate(date: Date, gmtOffset = -3) {
+  date = new Date(date.getTime() + gmtOffset * 3600000);
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Asuncion",
+    timeZone: "UTC",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -145,12 +147,17 @@ export class GlobalSatClient {
   private readonly baseUrl: string;
   private accessToken: string | null = null;
   private tokenExpiresAt = 0;
+  private tokenRequest: Promise<string> | null = null;
 
   constructor(
     private readonly config: {
       clientId: string;
       clientSecret: string;
       baseUrl?: string;
+      tokenStore?: {
+        load(): Promise<{ token: string; expiresAt: number } | null>;
+        save(value: { token: string; expiresAt: number }): Promise<void>;
+      };
     },
     private readonly fetcher: typeof fetch = fetch,
   ) {
@@ -161,6 +168,7 @@ export class GlobalSatClient {
     try {
       return await this.fetcher(url, {
         ...init,
+        redirect: "error",
         signal: AbortSignal.timeout(15000),
       });
     } catch (error) {
@@ -172,6 +180,24 @@ export class GlobalSatClient {
   private async token(force = false) {
     if (!force && this.accessToken && Date.now() < this.tokenExpiresAt)
       return this.accessToken;
+    if (this.tokenRequest) return this.tokenRequest;
+    this.tokenRequest = this.obtainToken(force);
+    try {
+      return await this.tokenRequest;
+    } finally {
+      this.tokenRequest = null;
+    }
+  }
+
+  private async obtainToken(force: boolean) {
+    if (!force && this.config.tokenStore) {
+      const cached = await this.config.tokenStore.load();
+      if (cached && cached.expiresAt > Date.now()) {
+        this.accessToken = cached.token;
+        this.tokenExpiresAt = cached.expiresAt;
+        return cached.token;
+      }
+    }
     const body = new URLSearchParams({
       client_id: this.config.clientId,
       client_secret: this.config.clientSecret,
@@ -181,17 +207,26 @@ export class GlobalSatClient {
       `${this.baseUrl}/oauth/access_token`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
         body,
       },
     );
     if (!response.ok)
-      throw new GlobalSatError(response.status === 429 ? "RATE_LIMITED" : "AUTH");
+      throw new GlobalSatError(
+        response.status === 429 ? "RATE_LIMITED" : "AUTH",
+      );
     const parsed = tokenSchema.safeParse(await jsonBody(response));
     if (!parsed.success) throw new GlobalSatError("INVALID_RESPONSE");
-    this.accessToken = parsed.data[0].access_token;
+    this.accessToken = parsed.data.access_token;
     this.tokenExpiresAt =
-      Date.now() + Math.max(0, parsed.data[0].expires_in - 60) * 1000;
+      Date.now() + Math.max(0, parsed.data.expires_in - 60) * 1000;
+    await this.config.tokenStore?.save({
+      token: this.accessToken,
+      expiresAt: this.tokenExpiresAt,
+    });
     return this.accessToken;
   }
 
@@ -205,6 +240,7 @@ export class GlobalSatClient {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body,
@@ -248,15 +284,20 @@ export class GlobalSatClient {
     targetIds: number[];
     fromId?: bigint;
     initialSince?: Date;
+    gmtOffset?: number;
     limit: number;
   }): Promise<GlobalSatTrackingPage> {
     const body = new URLSearchParams({
       id_targets: input.targetIds.join(","),
       limit: String(input.limit),
-      language: "pt",
+      lang: "pt",
     });
     if (input.fromId !== undefined) body.set("from_id", String(input.fromId));
-    else if (input.initialSince) body.set("ini_date", formatQueryDate(input.initialSince));
+    else if (input.initialSince)
+      body.set(
+        "ini_date",
+        formatQueryDate(input.initialSince, input.gmtOffset),
+      );
     const parsed = trackingPageSchema.safeParse(
       await this.post("/api/reports/tracking_data", body),
     );

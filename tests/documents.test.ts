@@ -10,7 +10,35 @@ import {
   emptyFields,
   detectDocumentType,
 } from "../src/lib/document-fields.ts";
-import { findMatchingDriver } from "../src/lib/driver-match.ts";
+import {
+  driverCandidates,
+  findMatchingDriver,
+  normalizeName,
+} from "../src/lib/driver-match.ts";
+test("driver matching tolerates a single long-name typo but never substitutes the plate owner", () => {
+  const drivers = [{ id: "1", name: "Claudionor Gonzalez", plate: "ABC1234" }];
+  assert.equal(
+    findMatchingDriver(drivers, "Claudionor Gonzales", "ABC1234")?.id,
+    "1",
+  );
+  assert.equal(
+    findMatchingDriver(drivers, "Pedro Silva", "ABC1234"),
+    undefined,
+  );
+  const ambiguous = [
+    ...drivers,
+    { id: "2", name: "Gonzalez Claudionor", plate: "ABC1234" },
+  ];
+  assert.equal(driverCandidates(ambiguous, "Claudionor Gonzalez").length, 2);
+  assert.equal(
+    findMatchingDriver(ambiguous, "Claudionor Gonzalez", "ABC1234"),
+    undefined,
+  );
+  assert.equal(
+    normalizeName("  Transportes   São José S.A. "),
+    normalizeName("TRANSPORTES SAO JOSE S A"),
+  );
+});
 test("matches known drivers despite accents, word order and plate punctuation", () => {
   const drivers = [
     { id: "1", name: "González, Claudionor", plate: "AAM-E814" },

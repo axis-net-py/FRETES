@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
+import { findParanaguaGate } from "@/lib/route-estimate";
+import { normalizePlate } from "@/lib/driver-match";
 const schema = z.object({
   code: z
     .string()
@@ -10,7 +12,7 @@ const schema = z.object({
     .regex(/^[A-Z]{4}\d{7}$/, "Use 4 letras e 7 números no container."),
   clientId: z.string().min(1),
   driverId: z.string().min(1),
-  geofenceId: z.string().min(1),
+  geofenceId: z.string().optional(),
   origin: z.string().trim().max(160),
   destination: z.string().trim().max(160),
   transitHours: z.coerce.number().int().min(1).max(720).optional(),
@@ -34,17 +36,40 @@ export async function POST(req: Request) {
       { error: p.error.issues[0].message },
       { status: 400 },
     );
-  if (
-    !(await prisma.geofence.findFirst({
-      where: { id: p.data.geofenceId, active: true },
-    }))
-  )
+  const gate = findParanaguaGate(
+    await prisma.geofence.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  );
+  if (!gate)
     return NextResponse.json(
-      { error: "Selecione um portão ativo." },
+      { error: "Cadastre e ative o portão de Paranaguá." },
       { status: 400 },
     );
   try {
-    return NextResponse.json(await prisma.container.create({ data: p.data }), {
+    const result = await prisma.$transaction(async (tx) => {
+      const driver = await tx.driver.findUniqueOrThrow({
+        where: { id: p.data.driverId },
+      });
+      const truckPlate = normalizePlate(driver.plate);
+      const vehicle = truckPlate
+        ? await tx.vehicle.upsert({
+            where: { plate: truckPlate },
+            create: { plate: truckPlate },
+            update: {},
+          })
+        : null;
+      return tx.container.create({
+        data: {
+          ...p.data,
+          geofenceId: gate.id,
+          truckPlate,
+          truckVehicleId: vehicle?.id,
+        },
+      });
+    });
+    return NextResponse.json(result, {
       status: 201,
     });
   } catch (e) {

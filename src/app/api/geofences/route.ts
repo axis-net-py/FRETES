@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
+import { normalizeName } from "@/lib/driver-match";
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   latitude: z.number().min(-90).max(90),
@@ -21,12 +22,29 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   try {
-    return NextResponse.json(
-      await prisma.geofence.create({
-        data: { ...p.data, status: "CHEGADA_PORTAO" },
-      }),
-      { status: 201 },
-    );
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(73191802)`;
+      const gates = await tx.geofence.findMany({
+        orderBy: { createdAt: "asc" },
+      });
+      const name = normalizeName(p.data.name);
+      const existing = gates.find(
+        (g) =>
+          normalizeName(g.name) === name ||
+          (name.includes("PARANAGUA") &&
+            normalizeName(g.name).includes("PARANAGUA")),
+      );
+      if (existing) return { gate: existing, created: false };
+      return {
+        gate: await tx.geofence.create({
+          data: { ...p.data, status: "CHEGADA_PORTAO" },
+        }),
+        created: true,
+      };
+    });
+    return NextResponse.json(result.gate, {
+      status: result.created ? 201 : 200,
+    });
   } catch (e) {
     return apiError(e);
   }

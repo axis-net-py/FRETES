@@ -6,7 +6,9 @@ Controle de fretes de containers com painel administrativo, rastreamento GPS por
 
 - Login administrativo com cookie HttpOnly, assinatura JWT de 12 horas e limite de tentativas persistente.
 - Clientes com telefone internacional e autorização para receber avisos; motoristas com placa.
-- Portões com coordenadas e raio configuráveis, vinculados individualmente ao frete.
+- Portão ativo de Paranaguá selecionado automaticamente para os fretes.
+- Importação de PDF/JPG/PNG com conferência, reutilização de clientes, motoristas e veículos por placa normalizada; nomes ambíguos exigem seleção do operador.
+- Estimativa de rota de caminhão com margem operacional positiva, armazenadas separadamente, e alternativa de prazo manual.
 - Containers, busca, filtros, exportação CSV e avanço manual de etapas.
 - Link privado por frete, válido por 7 dias, revogável ao gerar outro. A conclusão do frete revoga o link.
 - Rastreamento voluntário: botão iniciar/parar e permissão do sistema operacional.
@@ -42,7 +44,7 @@ A senha administrativa é configurada em `ADMIN_PASSWORD`. Gere uma senha longa 
 1. Cadastre cliente e autorização para avisos.
 2. Cadastre motorista e caminhão.
 3. Cadastre o portão com coordenadas verificadas no terminal. Exemplos visuais não são coordenadas homologadas.
-4. Crie um frete, associando cliente, motorista e portão.
+4. Importe o documento ou crie um frete, associando cliente e motorista. O portão ativo de Paranaguá é automático.
 5. Abra os detalhes do frete, gere um link e compartilhe-o pessoalmente com o motorista.
 6. O motorista autoriza o GPS e inicia o rastreamento. A versão web precisa ficar aberta.
 7. Uma posição válida dentro do portão avança `EM_TRANSITO` para `CHEGADA_PORTAO` e prepara um aviso.
@@ -65,6 +67,12 @@ Configure apenas como segredos do servidor:
 | `GLOBALSAT_CLIENT_ID` | Identificador OAuth fornecido pela GlobalSAT |
 | `GLOBALSAT_CLIENT_SECRET` | Segredo OAuth fornecido pela GlobalSAT |
 | `GLOBALSAT_SYNC_SECRET` | Valor aleatório com pelo menos 32 caracteres |
+
+`GLOBALSAT_BASE_URL` usa `https://apis.rastreioglobalsat.com`. As credenciais do portal servem apenas para consultar a documentação; o OAuth usa `client_credentials`. O token retornado em objeto é reutilizado até próximo da expiração e persistido com AES-256-GCM, usando `SESSION_SECRET` no servidor. Uma resposta 401 permite uma renovação; falhas e limites são apresentados sem credenciais ou tokens.
+
+Para cálculo automático, configure `OPENROUTESERVICE_API_KEY` e `ROUTE_OPERATIONAL_MARGIN_HOURS` (padrão 4; maior que zero e até 240). O total é arredondado para cima. Alterar destino ou prazo manualmente limpa os componentes da estimativa anterior.
+
+Os testes de integração exigem uma URL PostgreSQL em `.env.test` apontando para um schema cujo nome começa com `fretes_qa_`, com migrações aplicadas e `WHATSAPP_PROVIDER=disabled`. Nunca use o banco operacional: `npm run test:integration` cria e remove somente dados de teste, usando provedores simulados. As novas tabelas e colunas são aditivas; aplique com `npm run db:deploy` antes de publicar o código.
 
 O painel autenticado solicita uma sincronização ao abrir e depois a cada minuto. Para manter a atualização sem o painel aberto, o workflow `.github/workflows/globalsat-sync.yml` chama a rota protegida a cada cinco minutos. Cadastre estes secrets no repositório GitHub:
 

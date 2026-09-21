@@ -39,7 +39,7 @@ export async function processPosition(
   const outcome = await prisma.$transaction(
     async (tx) => {
       // Serialize fixes so concurrent, repeated or out-of-order samples cannot confirm a false exit.
-      await tx.$queryRaw`SELECT "id" FROM "Container" WHERE "id" = ${input.containerId} FOR UPDATE`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.containerId}))`;
       const c = await tx.container.findFirst({
         where: { id: input.containerId, driverId: input.driverId },
         include: { client: true },
@@ -53,13 +53,23 @@ export async function processPosition(
         }))
       )
         return null;
-      if (
-        c.departedAt ||
-        c.status === "ENTREGUE" ||
-        c.status === "A_CAMINHO_DESTINO"
-      )
-        return null;
+      if (c.status === "ENTREGUE") return null;
       if (c.lastGeofenceFixAt && fixAt <= c.lastGeofenceFixAt) return null;
+      if (c.departedAt || c.status === "A_CAMINHO_DESTINO") {
+        await tx.position.create({
+          data: {
+            ...input,
+            recordedAt: fixAt,
+            source,
+            externalId: options.externalId,
+          },
+        });
+        await tx.container.update({
+          where: { id: c.id },
+          data: { lastGeofenceFixAt: fixAt },
+        });
+        return null;
+      }
       const gate = c.geofenceId
         ? await tx.geofence.findUnique({ where: { id: c.geofenceId } })
         : null;

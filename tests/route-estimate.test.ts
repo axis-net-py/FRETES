@@ -3,11 +3,25 @@ import assert from "node:assert/strict";
 import {
   estimateRouteHours,
   findParanaguaGate,
+  routePlanning,
 } from "../src/lib/route-estimate.ts";
+
+test("stores route and configurable positive margin separately", () => {
+  assert.deepEqual(routePlanning(3600, 1.5), {
+    routeDurationSeconds: 3600,
+    operationalMarginSeconds: 5400,
+    transitHours: 3,
+  });
+  for (const margin of [0, -1, NaN, Infinity, 241])
+    assert.throws(() => routePlanning(3600, margin));
+});
 
 test("estimates a truck route and adds four whole hours", async () => {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
-  const fakeFetch = async (input: string | URL | Request, init?: RequestInit) => {
+  const fakeFetch = async (
+    input: string | URL | Request,
+    init?: RequestInit,
+  ) => {
     const url = String(input);
     requests.push({ url, init });
     if (url.includes("/geocode/search"))
@@ -30,7 +44,11 @@ test("estimates a truck route and adds four whole hours", async () => {
     fakeFetch,
   );
 
-  assert.equal(hours, 16);
+  assert.deepEqual(hours, {
+    routeDurationSeconds: 39601,
+    operationalMarginSeconds: 14400,
+    transitHours: 16,
+  });
   assert.match(requests[0].url, /geocode\/search/);
   assert.match(requests[0].url, /Ciudad(?:\+|%20)del(?:\+|%20)Este/);
   assert.match(requests[1].url, /directions\/driving-hgv/);
@@ -64,7 +82,13 @@ test("selects the active Paranagua port gate", () => {
       latitude: 0,
       longitude: 0,
     },
-    { id: "other", name: "Outro portão", active: true, latitude: 0, longitude: 0 },
+    {
+      id: "other",
+      name: "Outro portão",
+      active: true,
+      latitude: 0,
+      longitude: 0,
+    },
     {
       id: "paranagua",
       name: "PORTO DE PARANAGUA",

@@ -322,16 +322,10 @@ function Registration() {
                 </label>
                 <label>
                   Portão de saída · Paranaguá
-                  <select name="geofenceId" required defaultValue="">
-                    <option value="" disabled>
-                      Selecione o portão
-                    </option>
-                    {lists.gates.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    readOnly
+                    value="Porto de Paranaguá · seleção automática"
+                  />
                 </label>
                 <label>
                   Origem

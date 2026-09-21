@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { adminRequestError } from "@/lib/admin-request";
 const schema = z.object({ transitHours: z.number().int().min(1).max(720) });
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const unauthorized = await adminRequestError(req);
+  if (unauthorized) return unauthorized;
   const { id } = await params,
     p = schema.safeParse(await req.json().catch(() => null));
   if (!p.success)
@@ -28,6 +31,8 @@ export async function PATCH(
     where: { id },
     data: {
       transitHours: p.data.transitHours,
+      routeDurationSeconds: null,
+      operationalMarginSeconds: null,
       estimatedArrivalAt: c.departedAt
         ? new Date(c.departedAt.getTime() + p.data.transitHours * 3600000)
         : null,

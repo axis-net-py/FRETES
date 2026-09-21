@@ -8,6 +8,11 @@ import { GET as customerTracking } from "../src/app/api/customer-tracking/route"
 import { syncGlobalSat } from "../src/lib/globalsat-sync";
 import type { GlobalSatClient } from "../src/lib/globalsat-client";
 test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA and isolated customer access", async () => {
+  assert.match(
+    new URL(process.env.DATABASE_URL!).searchParams.get("schema") || "",
+    /^fretes_qa_/,
+    "Integration tests require a dedicated fretes_qa_ schema",
+  );
   if (process.env.WHATSAPP_PROVIDER === "meta")
     throw new Error("Tests require disabled WhatsApp");
   const suffix = randomUUID();
