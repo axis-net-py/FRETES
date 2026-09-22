@@ -207,11 +207,11 @@ function Registration() {
                   />
                 </label>
                 <label>
-                  {tab === "clients" ? "WhatsApp do cliente" : "Telefone"}
+                  {tab === "clients" ? "WhatsApp do cliente" : "Telefone (opcional)"}
                   <input
                     name={tab === "clients" ? "whatsapp" : "phone"}
                     type="tel"
-                    required
+                    required={tab === "clients"}
                     pattern="\+[1-9][0-9]{7,14}"
                     placeholder="+55… ou +595…"
                     title="Use + seguido do código do país e número, sem espaços."

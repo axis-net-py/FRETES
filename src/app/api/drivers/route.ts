@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
+import { adminRequestError } from "@/lib/admin-request";
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
   phone: z
     .string()
-    .regex(/^\+[1-9]\d{7,14}$/, "Informe telefone internacional com +."),
+    .trim()
+    .regex(/^(?:\+[1-9]\d{7,14})?$/, "Informe telefone internacional com +.")
+    .default(""),
   plate: z.string().trim().max(15).default(""),
 });
 export async function GET() {
@@ -15,6 +18,8 @@ export async function GET() {
   );
 }
 export async function POST(req: Request) {
+  const unauthorized = await adminRequestError(req);
+  if (unauthorized) return unauthorized;
   const p = schema.safeParse(await req.json().catch(() => null));
   if (!p.success)
     return NextResponse.json(
