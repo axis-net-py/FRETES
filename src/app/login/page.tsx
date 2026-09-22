@@ -61,7 +61,7 @@ export default function Login() {
             <WhatsappLogo size={28} />
           </div>
         </div>
-        <small>AXIS NET PY · Gestão de fretes</small>
+        <small>MANU LOGISTICA · Tecnologia AXIS</small>
       </section>
       <section className="login-form">
         <div className="max-w-sm w-full">

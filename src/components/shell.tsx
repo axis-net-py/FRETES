@@ -48,9 +48,9 @@ export default function Shell({
           </span>
         </Link>
         <div className="workspace">
-          <span className="workspace-avatar">AN</span>
+          <span className="workspace-avatar">ML</span>
           <div>
-            <b>AXIS NET PY</b>
+            <b>MANU LOGISTICA</b>
             <small>Operação logística</small>
           </div>
           <span className="ml-auto text-gray-400">⌄</span>
@@ -85,10 +85,10 @@ export default function Shell({
             <span className="text-emerald-300">
               <Truck size={23} />
             </span>
-            <b>A operação vai com você.</b>
-            <p>Acesse o rastreamento no celular do motorista.</p>
-            <Link href="/motorista">
-              Área do motorista <ArrowUpRight size={16} />
+            <b>Rastreamento direto no cavalo.</b>
+            <p>Posições recebidas do rastreador GlobalSAT instalado no veículo.</p>
+            <Link href={demo ? "/demo" : "/?view=fretes"}>
+              Acompanhar fretes <ArrowUpRight size={16} />
             </Link>
           </div>
           <Link
@@ -127,14 +127,14 @@ export default function Shell({
             <List size={24} />
           </button>
           <div className="text-sm text-slate-500">
-            Workspace <span className="mx-3 text-slate-300">/</span>{" "}
+            MANU LOGISTICA <span className="mx-3 text-slate-300">/</span>{" "}
             <span className="text-slate-800">Operação de fretes</span>
           </div>
           <div className="flex items-center gap-4">
             <span className="hidden sm:inline text-xs text-slate-500">
               Do porto ao destino.
             </span>
-            <span className="workspace-avatar small">AN</span>
+            <span className="workspace-avatar small">ML</span>
           </div>
         </header>
         {demo && (

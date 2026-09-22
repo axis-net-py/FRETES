@@ -17,7 +17,6 @@ import {
   WhatsappLogo,
   X,
   MagnifyingGlass,
-  Copy,
   NavigationArrow,
   PencilSimple,
   Trash,
@@ -121,7 +120,6 @@ export default function Dashboard({
   const [selected, setSelected] = useState<Freight | null>(null);
   const [editing, setEditing] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [link, setLink] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (demo) return;
@@ -415,7 +413,7 @@ export default function Dashboard({
             <div className="automation-steps">
               <span>
                 <NavigationArrow size={17} />
-                GPS do motorista
+                GlobalSAT no cavalo
               </span>
               <ArrowRight size={14} />
               <span>
@@ -556,7 +554,6 @@ export default function Dashboard({
                     onClick={() => {
                       setSelected(c);
                       setEditing(false);
-                      setLink("");
                       setFeedback("");
                     }}
                   >
@@ -984,46 +981,12 @@ export default function Dashboard({
                 >
                   Gerar novo link do cliente após saída
                 </button>
-                <h3 className="font-semibold mb-2">Acesso do motorista</h3>
+                <h3 className="font-semibold mb-2">Rastreamento GlobalSAT</h3>
                 <p className="text-sm text-slate-500 mb-4">
-                  Link privado válido por 7 dias. Gerar um novo revoga o
-                  anterior.
+                  As posições vêm do rastreador instalado no cavalo, identificado
+                  pela placa vinculada ao frete. Não é necessário acessar o
+                  celular do motorista.
                 </p>
-                <button
-                  disabled={busy || selected.status === "ENTREGUE"}
-                  className="btn primary"
-                  onClick={async () => {
-                    const p = await action(
-                      "/api/containers/" + selected.id + "/tracking",
-                    );
-                    if (p) setLink(p.url);
-                  }}
-                >
-                  Gerar link de rastreamento
-                </button>
-                {link && (
-                  <div className="mt-4">
-                    <input
-                      readOnly
-                      value={link}
-                      aria-label="Link privado do motorista"
-                    />
-                    <button
-                      className="btn secondary mt-2"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(link);
-                          setFeedback("Link copiado.");
-                        } catch {
-                          setFeedback("Selecione e copie o link acima.");
-                        }
-                      }}
-                    >
-                      <Copy size={16} />
-                      Copiar link
-                    </button>
-                  </div>
-                )}
                 <h3 className="font-semibold mt-8 mb-2">Atualização manual</h3>
                 <p className="text-sm text-slate-500 mb-3">
                   Avance a etapa após confirmar a operação. Esta ação não envia
@@ -1069,7 +1032,7 @@ export default function Dashboard({
         </div>
       )}
       <footer className="page-footer">
-        <span>AXIS Fretes</span>
+        <span>MANU LOGISTICA · Tecnologia AXIS</span>
         <span>Logística com informação, em cada etapa.</span>
       </footer>
     </Shell>

@@ -170,12 +170,11 @@ function Registration() {
             Abrir configuração na Vercel <ArrowRight size={16} />
           </a>
           <div className="mt-8 pt-5 border-t">
-            <h2>Android e iOS</h2>
+            <h2>Rastreamento dos cavalos · GlobalSAT</h2>
             <p className="text-sm text-slate-500 leading-relaxed">
-              A base já usa Capacitor com uma interface comum de GPS. A versão
-              web exige a página aberta. O rastreamento com a tela bloqueada
-              requer o módulo nativo de localização em segundo plano, permissões
-              e testes em dispositivos físicos antes da publicação nas lojas.
+              A MANU LOGISTICA acompanha os cavalos pelos rastreadores GlobalSAT
+              instalados nos veículos. A associação é feita pela placa do cavalo
+              vinculada ao frete, sem depender do celular do motorista.
             </p>
           </div>
         </section>
