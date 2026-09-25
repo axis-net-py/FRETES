@@ -38,6 +38,34 @@ export async function GET(
     },
   });
 }
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const unauthorized = await adminRequestError(req);
+  if (unauthorized) return unauthorized;
+  const { id } = await params;
+  try {
+    const doc = await prisma.tripDocument.findUnique({
+      where: { id },
+      select: { id: true, containerId: true },
+    });
+    if (!doc)
+      return NextResponse.json(
+        { error: "Documento não encontrado." },
+        { status: 404 },
+      );
+    if (doc.containerId)
+      return NextResponse.json(
+        { error: "Documento vinculado a um frete. Exclua o frete primeiro." },
+        { status: 409 },
+      );
+    await prisma.tripDocument.delete({ where: { id } });
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    return apiError(error);
+  }
+}
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

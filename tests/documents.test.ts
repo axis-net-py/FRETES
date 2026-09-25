@@ -4,6 +4,7 @@ import {
   extractDocument,
   DocumentExtractionError,
   documentInstructions,
+  sanitizeExtractedFields,
   shouldReExtract,
 } from "../src/lib/document-extraction.ts";
 import { documentProvider } from "../src/lib/document-provider.ts";
@@ -106,15 +107,49 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "português",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, null), true);
-  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, null), false);
-  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "" } }, null), true);
+  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, null), true);
+  assert.equal(shouldReExtract({ promptVersion: 4, fields: { code: "MRSU2904847" } }, null), false);
+  assert.equal(shouldReExtract({ promptVersion: 4, fields: { code: "" } }, null), true);
   assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, null), true);
   assert.equal(shouldReExtract(null, null), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, "freight-1"),
+    shouldReExtract({ promptVersion: 4, fields: { code: "MRSU2904847" } }, "freight-1"),
     false,
   );
+});
+test("sanitizer strips carrier clients and scheduling numbers without touching valid data", () => {
+  const guide = sanitizeExtractedFields({
+    ...emptyFields,
+    clientName: "MSK - Maersk Lines",
+    code: "MRSU2904847",
+    micDta: "2604487211",
+    driverName: "EDERSON FACHINI",
+    truckPlate: "ABCD519",
+  });
+  assert.equal(guide.fields.clientName, "");
+  assert.equal(guide.fields.micDta, "");
+  assert.equal(guide.fields.code, "MRSU2904847");
+  assert.equal(guide.fields.driverName, "EDERSON FACHINI");
+  assert.ok(guide.notes.join(" ").includes("Armador"));
+  const dupes = sanitizeExtractedFields({
+    ...emptyFields,
+    code: "MRSU2904847",
+    micDta: "MRSU2904847",
+    crt: "MRSU2904847",
+  });
+  assert.equal(dupes.fields.micDta, "");
+  assert.equal(dupes.fields.crt, "");
+  const valid = sanitizeExtractedFields({
+    ...emptyFields,
+    clientName: "Transportes Reais S.A.",
+    code: "FCIU7453117",
+    micDta: "MIC-TEST",
+    crt: "BR366200277",
+  });
+  assert.equal(valid.fields.clientName, "Transportes Reais S.A.");
+  assert.equal(valid.fields.micDta, "MIC-TEST");
+  assert.equal(valid.fields.crt, "BR366200277");
+  assert.deepEqual(valid.notes, []);
 });
 test("Gemini trims pasted credentials and distinguishes transport failures", async (t) => {
   const previousKey = process.env.GEMINI_API_KEY;

@@ -128,6 +128,28 @@ function Importer() {
       setBusy(false);
     }
   }
+  async function removeDoc(id: string, filename?: string) {
+    if (
+      !window.confirm(
+        `Excluir definitivamente o documento ${filename || ""}? Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const r = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(d?.error || "Não foi possível excluir.");
+      if (doc?.id === id) setDoc(null);
+      setMessage("Documento excluído.");
+      await reload();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Falha ao excluir.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!doc) return;
@@ -366,24 +388,22 @@ function Importer() {
         </p>
       )}
       <section className="panel form-panel mt-6">
-        <h2>Documentos enviados</h2>
-        {!docs.length ? (
-          <p>Nenhum documento enviado.</p>
+        <h2>Aguardando conferência · {docs.filter((d) => !d.containerId).length}</h2>
+        {!docs.some((d) => !d.containerId) ? (
+          <p>Nenhum documento pendente.</p>
         ) : (
-          docs.map((d) => (
-            <div
-              key={d.id}
-              className="flex flex-wrap gap-3 justify-between border-b py-3"
-            >
-              <span>
-                {d.filename} ·{" "}
-                {d.containerId ? "Cadastrado" : "Aguardando conferência"}
-              </span>
-              <div className="flex gap-3">
-                <a className="underline" href={`/api/documents/${d.id}`}>
-                  Baixar
-                </a>
-                {!d.containerId && (
+          docs
+            .filter((d) => !d.containerId)
+            .map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap gap-3 justify-between border-b py-3"
+              >
+                <span>{d.filename}</span>
+                <div className="flex gap-3">
+                  <a className="underline" href={`/api/documents/${d.id}`}>
+                    Baixar
+                  </a>
                   <button
                     disabled={busy || planning}
                     className="underline"
@@ -394,12 +414,41 @@ function Importer() {
                   >
                     Conferir
                   </button>
-                )}
+                  <button
+                    disabled={busy || planning}
+                    className="underline"
+                    onClick={() => void removeDoc(d.id, d.filename)}
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
+            ))
         )}
       </section>
+      {docs.some((d) => d.containerId) && (
+        <section className="panel form-panel mt-6">
+          <h2>Fretes já cadastrados</h2>
+          {docs
+            .filter((d) => d.containerId)
+            .map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-wrap gap-3 justify-between border-b py-3"
+              >
+                <span>
+                  {d.filename} ·{" "}
+                  <Link href="/">Abrir frete →</Link>
+                </span>
+                <div className="flex gap-3">
+                  <a className="underline" href={`/api/documents/${d.id}`}>
+                    Baixar
+                  </a>
+                </div>
+              </div>
+            ))}
+        </section>
+      )}
     </Shell>
   );
 }
