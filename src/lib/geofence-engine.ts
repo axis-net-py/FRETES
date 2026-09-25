@@ -154,7 +154,7 @@ export async function processPosition(
         ? new Date(departedAt.getTime() + c.transitHours * 3600000)
         : null;
       const token = randomBytes(32).toString("hex");
-      const link = `${(process.env.APP_URL || "https://fretes-taupe.vercel.app").replace(/\/$/, "")}/acompanhar#${token}`;
+      const link = `${(process.env.APP_URL || "https://axis-fretes.vercel.app").replace(/\/$/, "")}/acompanhar#${token}`;
       await tx.container.update({
         where: { id: c.id },
         data: {
