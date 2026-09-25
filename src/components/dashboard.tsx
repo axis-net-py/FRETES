@@ -47,6 +47,7 @@ export type Freight = {
   estimatedArrivalAt?: string;
   departedAt?: string;
   document?: { id: string; filename: string } | null;
+  documentLinks?: { document: { id: string; filename: string } }[];
   clientId?: string;
   driverId?: string;
   geofenceId?: string;
@@ -903,18 +904,20 @@ export default function Dashboard({
                   </dd>
                 </>
               )}
-              {selected.document && (
-                <>
-                  <dt>Documento</dt>
-                  <dd>
-                    <a
-                      className="underline"
-                      href={`/api/documents/${selected.document.id}`}
-                    >
-                      {selected.document.filename}
-                    </a>
-                  </dd>
-                </>
+              {(selected.documentLinks || (selected.document ? [{ document: selected.document }] : [])).map(
+                ({ document: attached }) => (
+                  <div key={attached.id}>
+                    <dt>Documento</dt>
+                    <dd>
+                      <a
+                        className="underline"
+                        href={`/api/documents/${attached.id}`}
+                      >
+                        {attached.filename}
+                      </a>
+                    </dd>
+                  </div>
+                ),
               )}
               <dt>Trajeto</dt>
               <dd>

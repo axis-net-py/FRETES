@@ -46,18 +46,23 @@ export async function DELETE(
   if (unauthorized) return unauthorized;
   const { id } = await params;
   try {
-    const doc = await prisma.tripDocument.findUnique({
-      where: { id },
-      select: { id: true, containerId: true },
+    const linkCount = await prisma.documentLink.count({
+      where: { documentId: id },
     });
+    const doc = linkCount
+      ? { id }
+      : await prisma.tripDocument.findUnique({
+          where: { id },
+          select: { id: true },
+        });
     if (!doc)
       return NextResponse.json(
         { error: "Documento não encontrado." },
         { status: 404 },
       );
-    if (doc.containerId)
+    if (linkCount)
       return NextResponse.json(
-        { error: "Documento vinculado a um frete. Exclua o frete primeiro." },
+        { error: "Documento vinculado a fretes. Exclua os fretes primeiro." },
         { status: 409 },
       );
     await prisma.tripDocument.delete({ where: { id } });
@@ -113,10 +118,15 @@ export async function POST(
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(73191801)`;
         const doc = await tx.tripDocument.findUnique({
           where: { id },
-          select: { containerId: true },
+          select: { id: true },
         });
         if (!doc) throw new Error("Missing document");
-        if (doc.containerId) return { id: doc.containerId };
+        // Same trip confirmed twice returns the existing freight.
+        const existingLink = await tx.documentLink.findFirst({
+          where: { documentId: id, container: { code: d.fields.code } },
+          select: { containerId: true },
+        });
+        if (existingLink) return { id: existingLink.containerId };
         const records = await resolveImportRecords(tx, { ...d, ...d.fields });
         const { clientName, driverName, ...fields } = d.fields;
         void clientName;
@@ -131,9 +141,8 @@ export async function POST(
             operationalMarginSeconds: d.operationalMarginSeconds ?? null,
           },
         });
-        await tx.tripDocument.update({
-          where: { id },
-          data: { containerId: container.id },
+        await tx.documentLink.create({
+          data: { documentId: id, containerId: container.id },
         });
         return { id: container.id };
       },

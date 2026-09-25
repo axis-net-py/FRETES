@@ -65,7 +65,7 @@ model Container {
   estimatedArrivalAt DateTime?
   customerTrackingHash String? @unique
   customerTrackingExpiresAt DateTime?
-  document TripDocument?
+  documentLinks DocumentLink[]
   clientId   String
   driverId   String?
   geofenceId String?
@@ -167,7 +167,19 @@ model TripDocument {
   content Bytes
   sha256 String @unique
   extracted Json
-  containerId String? @unique
-  container Container? @relation(fields: [containerId], references: [id])
+  links DocumentLink[]
   createdAt DateTime @default(now())
+}
+
+model DocumentLink {
+  id String @id @default(cuid())
+  documentId String
+  containerId String
+  createdAt DateTime @default(now())
+
+  document TripDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  container Container @relation(fields: [containerId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, containerId])
+  @@index([containerId])
 }

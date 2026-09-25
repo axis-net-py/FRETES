@@ -3,17 +3,19 @@ import { Suspense, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import Shell from "@/components/shell";
 import { findMatchingDriver, normalizeName } from "@/lib/driver-match";
+import { toTripExtractions } from "@/lib/document-extraction";
 import {
   DocumentFields,
   emptyFields,
   fieldLabels,
 } from "@/lib/document-fields";
 type Row = { id: string; name: string; plate?: string; active?: boolean };
+type DocLink = { containerId: string; container: { code: string } };
 type Doc = {
   id: string;
   filename?: string;
-  containerId: string | null;
-  extracted: { fields: DocumentFields; warning: string };
+  links: DocLink[];
+  extracted: unknown;
 };
 function Importer() {
   const [docs, setDocs] = useState<Doc[]>([]),
@@ -34,6 +36,7 @@ function Importer() {
     [driverId, setDriverId] = useState(""),
     [geofenceId, setGeofenceId] = useState(""),
     [transitHours, setTransitHours] = useState(""),
+    [tripIndex, setTripIndex] = useState(0),
     [planning, setPlanning] = useState(false);
   type Lists = { clients: Row[]; drivers: Row[]; gates: Row[] };
   async function reload(): Promise<
@@ -65,21 +68,26 @@ function Importer() {
   useEffect(() => {
     reload().catch((e) => setMessage(e.message));
   }, []);
-  function select(d: Doc, lists?: Lists) {
+  function select(d: Doc, lists?: Lists, index = 0) {
     const knownClients = lists?.clients ?? clients;
     const knownDrivers = lists?.drivers ?? drivers;
     const knownGates = lists?.gates ?? gates;
+    const tripList = toTripExtractions(d.extracted);
+    const safeIndex = tripList.length
+      ? Math.min(Math.max(index, 0), tripList.length - 1)
+      : 0;
+    const tripFields = tripList[safeIndex]?.fields || emptyFields;
     setDoc(d);
-    setFields({ ...emptyFields, ...d.extracted.fields });
+    setTripIndex(safeIndex);
+    setFields({ ...emptyFields, ...tripFields });
     const matches = knownClients.filter(
-      (c) =>
-        normalizeName(c.name) === normalizeName(d.extracted.fields.clientName),
+      (c) => normalizeName(c.name) === normalizeName(tripFields.clientName),
     );
     setClientId(matches.length === 1 ? matches[0].id : "");
     const matchedDriver = findMatchingDriver(
       knownDrivers,
-      d.extracted.fields.driverName,
-      d.extracted.fields.truckPlate,
+      tripFields.driverName,
+      tripFields.truckPlate,
     );
     setDriverId(matchedDriver?.id ?? "");
     setGeofenceId(
@@ -133,8 +141,8 @@ function Importer() {
           d?.error || `Falha no envio (HTTP ${r.status}). Tente novamente.`,
         );
       const fresh = await reload();
-      select(d, fresh);
-      await estimatePlanning(d.extracted.fields.destination);
+      select(d, fresh, 0);
+      await estimatePlanning(toTripExtractions(d.extracted)[0]?.fields.destination || "");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
@@ -187,15 +195,49 @@ function Importer() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      setDoc({ ...doc, containerId: d.id });
-      setMessage("Frete cadastrado com o documento anexado.");
-      await reload();
+      const savedCode = fields.code;
+      setMessage(`Frete ${savedCode} cadastrado com o documento anexado.`);
+      const fresh = await reload();
+      const updated = fresh.docs.find((item) => item.id === doc.id);
+      if (updated) {
+        const codes = new Set(updated.links.map((l) => l.container.code));
+        const updatedTrips = toTripExtractions(updated.extracted);
+        const next = updatedTrips.findIndex(
+          (trip, i) =>
+            i > tripIndex && trip.fields.code && !codes.has(trip.fields.code),
+        );
+        select(updated, fresh, next >= 0 ? next : tripIndex);
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha ao salvar.");
     } finally {
       setBusy(false);
     }
   }
+  const trips = doc ? toTripExtractions(doc.extracted) : [];
+  const trip = trips[tripIndex];
+  const registeredCodes = new Set(
+    (doc?.links || []).map((l) => l.container.code),
+  );
+  const tripRegistered =
+    !!trip?.fields.code && registeredCodes.has(trip.fields.code);
+  const docWarning =
+    doc &&
+    typeof (doc.extracted as { warning?: unknown }).warning === "string"
+      ? ((doc.extracted as { warning: string }).warning as string)
+      : "";
+  const pendingDocs = docs.filter((d) => {
+    const list = toTripExtractions(d.extracted);
+    if (!list.length) return true;
+    const codes = new Set(d.links.map((l) => l.container.code));
+    return list.some((t) => !t.fields.code || !codes.has(t.fields.code));
+  });
+  const doneDocs = docs.filter((d) => {
+    const list = toTripExtractions(d.extracted);
+    if (!list.length) return false;
+    const codes = new Set(d.links.map((l) => l.container.code));
+    return list.every((t) => t.fields.code && codes.has(t.fields.code));
+  });
   return (
     <Shell>
       <div className="page-heading">
@@ -246,9 +288,50 @@ function Importer() {
           {message}
         </p>
       )}
-      {doc && !doc.containerId && (
-        <form key={doc.id} className="panel form-panel mt-6" onSubmit={save}>
-          <h2>2. Conferir e cadastrar</h2>
+      {doc && trips.length > 1 && (
+        <section className="panel form-panel mt-6">
+          <h2>
+            Viagens do documento · {trips.length} ·{" "}
+            {trips.filter((t) => t.fields.code && registeredCodes.has(t.fields.code)).length}{" "}
+            cadastradas
+          </h2>
+          {trips.map((t, i) => {
+            const done = !!t.fields.code && registeredCodes.has(t.fields.code);
+            return (
+              <div
+                key={i}
+                className="flex flex-wrap gap-3 justify-between border-b py-3"
+              >
+                <span>
+                  {t.fields.code || `Viagem ${i + 1} (sem container)`} ·{" "}
+                  {t.fields.driverName || "motorista a conferir"} ·{" "}
+                  {t.fields.truckPlate || "placa a conferir"}
+                  {done ? " · Cadastrada" : ""}
+                </span>
+                <div className="flex gap-3">
+                  <button
+                    disabled={busy || planning}
+                    className="underline"
+                    onClick={() => select(doc, undefined, i)}
+                  >
+                    {i === tripIndex ? "Editando" : "Conferir"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
+      {doc && trip && !tripRegistered && (
+        <form
+          key={`${doc.id}-${tripIndex}`}
+          className="panel form-panel mt-6"
+          onSubmit={save}
+        >
+          <h2>
+            2. Conferir e cadastrar
+            {trips.length > 1 ? ` · viagem ${tripIndex + 1} de ${trips.length}` : ""}
+          </h2>
           <p>
             Confira especialmente container, CRT, placas e valor. Campos
             ilegíveis devem ser completados.{" "}
@@ -256,8 +339,8 @@ function Importer() {
               Baixar original
             </a>
           </p>
-          {doc.extracted.warning && (
-            <p className="feedback">{doc.extracted.warning}</p>
+          {(docWarning || trip.warning) && (
+            <p className="feedback">{[docWarning, trip.warning].filter(Boolean).join(" ")}</p>
           )}
           <div className="form-grid">
             {(Object.keys(fieldLabels) as (keyof DocumentFields)[]).map((k) => (
@@ -394,72 +477,73 @@ function Importer() {
           </button>
         </form>
       )}
-      {doc?.containerId && (
+      {doc && trip && tripRegistered && (
         <p className="feedback">
-          Este documento já está vinculado a um frete.{" "}
+          Este frete ({trip.fields.code}) já está vinculado ao documento.{" "}
           <Link href="/">Abrir painel →</Link>
         </p>
       )}
       <section className="panel form-panel mt-6">
-        <h2>Aguardando conferência · {docs.filter((d) => !d.containerId).length}</h2>
-        {!docs.some((d) => !d.containerId) ? (
+        <h2>Aguardando conferência · {pendingDocs.length}</h2>
+        {!pendingDocs.length ? (
           <p>Nenhum documento pendente.</p>
         ) : (
-          docs
-            .filter((d) => !d.containerId)
-            .map((d) => (
-              <div
-                key={d.id}
-                className="flex flex-wrap gap-3 justify-between border-b py-3"
-              >
-                <span>{d.filename}</span>
-                <div className="flex gap-3">
-                  <a className="underline" href={`/api/documents/${d.id}`}>
-                    Baixar
-                  </a>
-                  <button
-                    disabled={busy || planning}
-                    className="underline"
-                    onClick={() => {
-                      select(d);
-                      void estimatePlanning(d.extracted.fields.destination);
-                    }}
-                  >
-                    Conferir
-                  </button>
-                  <button
-                    disabled={busy || planning}
-                    className="underline"
-                    onClick={() => void removeDoc(d.id, d.filename)}
-                  >
-                    Excluir
-                  </button>
-                </div>
+          pendingDocs.map((d) => (
+            <div
+              key={d.id}
+              className="flex flex-wrap gap-3 justify-between border-b py-3"
+            >
+              <span>
+                {d.filename} · {toTripExtractions(d.extracted).length || "sem"}{" "}
+                viagem(ns) identificada(s)
+              </span>
+              <div className="flex gap-3">
+                <a className="underline" href={`/api/documents/${d.id}`}>
+                  Baixar
+                </a>
+                <button
+                  disabled={busy || planning}
+                  className="underline"
+                  onClick={() => {
+                    select(d, undefined, 0);
+                    const first = toTripExtractions(d.extracted)[0];
+                    void estimatePlanning(first?.fields.destination || "");
+                  }}
+                >
+                  Conferir
+                </button>
+                <button
+                  disabled={busy || planning}
+                  className="underline"
+                  onClick={() => void removeDoc(d.id, d.filename)}
+                >
+                  Excluir
+                </button>
               </div>
-            ))
+            </div>
+          ))
         )}
       </section>
-      {docs.some((d) => d.containerId) && (
+      {!!doneDocs.length && (
         <section className="panel form-panel mt-6">
           <h2>Fretes já cadastrados</h2>
-          {docs
-            .filter((d) => d.containerId)
-            .map((d) => (
-              <div
-                key={d.id}
-                className="flex flex-wrap gap-3 justify-between border-b py-3"
-              >
-                <span>
-                  {d.filename} ·{" "}
-                  <Link href="/">Abrir frete →</Link>
-                </span>
-                <div className="flex gap-3">
-                  <a className="underline" href={`/api/documents/${d.id}`}>
-                    Baixar
-                  </a>
-                </div>
+          {doneDocs.map((d) => (
+            <div
+              key={d.id}
+              className="flex flex-wrap gap-3 justify-between border-b py-3"
+            >
+              <span>
+                {d.filename} ·{" "}
+                {d.links.map((l) => l.container.code).join(", ")}{" "}
+                <Link href="/">Abrir painel →</Link>
+              </span>
+              <div className="flex gap-3">
+                <a className="underline" href={`/api/documents/${d.id}`}>
+                  Baixar
+                </a>
               </div>
-            ))}
+            </div>
+          ))}
         </section>
       )}
     </Shell>

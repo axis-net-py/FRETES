@@ -10,6 +10,12 @@ import {
 import { documentProvider } from "@/lib/document-provider";
 import { apiError } from "@/lib/api";
 export const maxDuration = 60;
+const documentLinksSelect = {
+  select: {
+    containerId: true,
+    container: { select: { code: true } },
+  },
+};
 export async function GET() {
   return NextResponse.json({
     ...documentProvider(),
@@ -20,8 +26,8 @@ export async function GET() {
         id: true,
         filename: true,
         createdAt: true,
-        containerId: true,
         extracted: true,
+        links: documentLinksSelect,
       },
     }),
   });
@@ -56,10 +62,10 @@ export async function POST(req: Request) {
     const sha256 = createHash("sha256").update(content).digest("hex");
     const existing = await prisma.tripDocument.findUnique({
       where: { sha256 },
-      select: { id: true, extracted: true, containerId: true },
+      select: { id: true, extracted: true, links: documentLinksSelect },
     });
     // Re-read files stored under older instructions; linked freights keep theirs.
-    if (existing && !shouldReExtract(existing.extracted, existing.containerId))
+    if (existing && !shouldReExtract(existing.extracted, existing.links.length))
       return NextResponse.json(existing);
     // Shared, persistent limit also applies across serverless instances.
     const bucket = `document-upload:${Math.floor(Date.now() / 3600000)}`;
@@ -93,7 +99,7 @@ export async function POST(req: Request) {
         sha256,
         extracted,
       },
-      select: { id: true, extracted: true, containerId: true },
+      select: { id: true, extracted: true, links: documentLinksSelect },
     });
     return NextResponse.json(doc, { status: 201 });
   } catch (e) {

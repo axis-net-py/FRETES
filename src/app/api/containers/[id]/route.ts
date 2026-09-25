@@ -133,7 +133,11 @@ export async function PATCH(
         include: {
           client: true,
           driver: true,
-          document: { select: { id: true, filename: true } },
+          documentLinks: {
+            select: {
+              document: { select: { id: true, filename: true } },
+            },
+          },
         },
       });
     });
@@ -171,10 +175,7 @@ export async function DELETE(
         where: { containerId: id },
         data: { containerId: null },
       });
-      await tx.tripDocument.updateMany({
-        where: { containerId: id },
-        data: { containerId: null },
-      });
+      // Document links cascade with the freight; source files are kept.
       await tx.container.delete({ where: { id } });
     });
 

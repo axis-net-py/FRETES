@@ -44,12 +44,12 @@ try {
   const data = await response.json();
   if (response.status === 201) createdId = data.id;
   assert.equal(response.status, 201, data.error);
-  assert.equal(data.extracted.fields.code, "TEST1234567");
-  assert.equal(data.extracted.fields.crt, "TEST-CRT-002");
-  assert.equal(data.extracted.fields.freightValue, "2200.00");
-  assert.equal(data.extracted.fields.truckPlate, "TST1234");
-  assert.equal(data.extracted.fields.trailerPlate, "TST5678");
-  assert.equal(data.containerId, null);
+  assert.equal(data.extracted.trips[0].fields.code, "TEST1234567");
+  assert.equal(data.extracted.trips[0].fields.crt, "TEST-CRT-002");
+  assert.equal(data.extracted.trips[0].fields.freightValue, "2200.00");
+  assert.equal(data.extracted.trips[0].fields.truckPlate, "TST1234");
+  assert.equal(data.extracted.trips[0].fields.trailerPlate, "TST5678");
+  assert.deepEqual(data.links, []);
   console.log(
     "PASS: production Gemini PDF extraction, free-tier declaration, draft awaiting review.",
   );

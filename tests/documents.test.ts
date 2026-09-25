@@ -6,6 +6,7 @@ import {
   documentInstructions,
   sanitizeExtractedFields,
   shouldReExtract,
+  toTripExtractions,
 } from "../src/lib/document-extraction.ts";
 import { documentProvider } from "../src/lib/document-provider.ts";
 import {
@@ -107,15 +108,64 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "português",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, null), true);
-  assert.equal(shouldReExtract({ promptVersion: 4, fields: { code: "MRSU2904847" } }, null), false);
-  assert.equal(shouldReExtract({ promptVersion: 4, fields: { code: "" } }, null), true);
-  assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, null), true);
-  assert.equal(shouldReExtract(null, null), true);
+  assert.equal(shouldReExtract({ promptVersion: 4, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
+  assert.equal(shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, 0), true);
+  assert.equal(shouldReExtract(null, 0), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 4, fields: { code: "MRSU2904847" } }, "freight-1"),
+    shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
     false,
   );
+});
+test("multi-trip payloads parse per trip and legacy payloads adapt", async (t) => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "unit-test-key";
+  const mock = t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              finishReason: "STOP",
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      trips: [
+                        { ...emptyFields, code: "FSCU8621533", warning: "" },
+                        { ...emptyFields, code: "OOCU7205410", warning: "w" },
+                      ],
+                      warning: "doc",
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+  );
+  try {
+    const result = await extractDocument(
+      Buffer.from("%PDF-1.7"),
+      "application/pdf",
+    );
+    assert.equal(result.trips.length, 2);
+    assert.equal(result.trips[0].fields.code, "FSCU8621533");
+    assert.equal(result.trips[1].warning, "w");
+    assert.equal(result.warning, "doc");
+  } finally {
+    mock.mock.restore();
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
+  }
+  assert.deepEqual(toTripExtractions({ fields: { ...emptyFields, code: "X" }, warning: "legacy" }), [
+    { fields: { ...emptyFields, code: "X" }, warning: "legacy" },
+  ]);
+  assert.deepEqual(toTripExtractions(null), []);
 });
 test("sanitizer strips carrier clients and scheduling numbers without touching valid data", () => {
   const guide = sanitizeExtractedFields({
@@ -205,8 +255,13 @@ test("Gemini sends inline documents and validates output, quota and refusal with
           parts: [
             {
               text: JSON.stringify({
-                ...emptyFields,
-                code: "TEST1234567",
+                trips: [
+                  {
+                    ...emptyFields,
+                    code: "TEST1234567",
+                    warning: "",
+                  },
+                ],
                 warning: "",
               }),
             },
@@ -240,8 +295,8 @@ test("Gemini sends inline documents and validates output, quota and refusal with
     process.env.GEMINI_DATA_MODE = "paid";
     assert.equal(documentProvider().testOnly, false);
     assert.equal(
-      (await extractDocument(Buffer.from("%PDF-1.7"), "application/pdf")).fields
-        .code,
+      (await extractDocument(Buffer.from("%PDF-1.7"), "application/pdf")).trips[0]
+        .fields.code,
       "TEST1234567",
     );
     status = 429;

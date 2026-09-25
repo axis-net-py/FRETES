@@ -58,7 +58,11 @@ test("import reuses normalized records, resolves vehicles, fixes gate, stores pl
           mimeType: "application/pdf",
           content,
           sha256: createHash("sha256").update(content).digest("hex"),
-          extracted: { fields, warning: "" },
+          extracted: {
+            promptVersion: 5,
+            trips: [{ fields, warning: "" }],
+            warning: "",
+          },
         },
       });
       docs.push(d.id);
@@ -139,8 +143,8 @@ test("import reuses normalized records, resolves vehicles, fixes gate, stores pl
     const editedBody = await editedResponse.json();
     assert.equal(editedBody.client.id, clientId);
     assert.equal(editedBody.driver.id, driverId);
-    assert.equal(editedBody.document.id, docs[0]);
-    assert.equal("content" in editedBody.document, false);
+    assert.equal(editedBody.documentLinks[0].document.id, docs[0]);
+    assert.equal("content" in editedBody.documentLinks[0].document, false);
     assert.equal("trackingTokenHash" in editedBody, false);
     assert.equal("customerTrackingHash" in editedBody, false);
     const changed = await prisma.container.findUniqueOrThrow({
@@ -157,9 +161,13 @@ test("import reuses normalized records, resolves vehicles, fixes gate, stores pl
       null,
     );
     assert.equal(
-      (await prisma.tripDocument.findUniqueOrThrow({ where: { id: docs[0] } }))
-        .containerId,
-      null,
+      await prisma.documentLink.count({
+        where: { documentId: docs[0] },
+      }),
+      0,
+    );
+    assert.ok(
+      await prisma.tripDocument.findUnique({ where: { id: docs[0] } }),
     );
   } finally {
     await prisma.tripDocument.deleteMany({ where: { id: { in: docs } } });
