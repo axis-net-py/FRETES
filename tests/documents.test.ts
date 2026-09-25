@@ -92,6 +92,46 @@ test("uses actual file signatures rather than filename or claimed MIME", () => {
   );
 });
 
+test("Gemini trims pasted credentials and distinguishes transport failures", async (t) => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  const previousModel = process.env.GEMINI_DOCUMENT_MODEL;
+  process.env.GEMINI_API_KEY = "  unit-test-key\n";
+  process.env.GEMINI_DOCUMENT_MODEL = " gemini-2.5-flash ";
+  let seenUrl = "";
+  let seenKey = "";
+  const mock = t.mock.method(
+    globalThis,
+    "fetch",
+    async (url: string, init: RequestInit) => {
+      seenUrl = String(url);
+      seenKey = String(
+        (init.headers as Record<string, string>)["x-goog-api-key"],
+      );
+      throw new TypeError("fetch failed");
+    },
+  );
+  try {
+    await assert.rejects(
+      extractDocument(Buffer.from("%PDF-1.7"), "application/pdf"),
+      (e: unknown) =>
+        e instanceof DocumentExtractionError &&
+        !e.message.includes("unit-test-key") &&
+        e.message.includes("chave do Gemini"),
+    );
+    assert.ok(
+      seenUrl.includes("/models/gemini-2.5-flash:generateContent"),
+      `model not trimmed: ${seenUrl}`,
+    );
+    assert.equal(seenKey, "unit-test-key");
+  } finally {
+    mock.mock.restore();
+    if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = previousKey;
+    if (previousModel === undefined) delete process.env.GEMINI_DOCUMENT_MODEL;
+    else process.env.GEMINI_DOCUMENT_MODEL = previousModel;
+  }
+});
+
 test("Gemini sends inline documents and validates output, quota and refusal without leaking secrets", async (t) => {
   const previousKey = process.env.GEMINI_API_KEY;
   const previousMode = process.env.GEMINI_DATA_MODE;

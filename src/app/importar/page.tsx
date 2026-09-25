@@ -110,8 +110,13 @@ function Importer() {
       const data = new FormData();
       data.set("file", file);
       const r = await fetch("/api/documents", { method: "POST", body: data });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
+      const d = (await r.json().catch(() => null)) as (Doc & {
+        error?: string;
+      }) | null;
+      if (!r.ok || !d || !d.id)
+        throw new Error(
+          d?.error || `Falha no envio (HTTP ${r.status}). Tente novamente.`,
+        );
       select(d);
       await Promise.all([
         reload(),

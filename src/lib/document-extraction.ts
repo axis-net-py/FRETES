@@ -35,7 +35,15 @@ function parseFields(text: string) {
 }
 
 async function extractGemini(content: Buffer, mimeType: string) {
-  const model = process.env.GEMINI_DOCUMENT_MODEL || "gemini-2.5-flash";
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
+  const model = (
+    process.env.GEMINI_DOCUMENT_MODEL || "gemini-2.5-flash"
+  ).trim();
+  if (!apiKey || !model)
+    throw new DocumentExtractionError(
+      "A leitura automática não está configurada. Confira a chave do Gemini na Vercel.",
+      503,
+    );
   let response: Response;
   try {
     response = await fetch(
@@ -43,7 +51,7 @@ async function extractGemini(content: Buffer, mimeType: string) {
       {
         method: "POST",
         headers: {
-          "x-goog-api-key": process.env.GEMINI_API_KEY!,
+          "x-goog-api-key": apiKey,
           "Content-Type": "application/json",
         },
         signal: AbortSignal.timeout(45000),
@@ -76,9 +84,16 @@ async function extractGemini(content: Buffer, mimeType: string) {
         }),
       },
     );
-  } catch {
+  } catch (error) {
+    const timedOut =
+      error instanceof DOMException && error.name === "TimeoutError";
+    console.error(
+      `[documents] gemini ${timedOut ? "timeout" : "transport-error"} model=${model} bytes=${content.length}`,
+    );
     throw new DocumentExtractionError(
-      "O serviço de leitura demorou a responder. Tente novamente.",
+      timedOut
+        ? "O serviço de leitura demorou a responder. Tente novamente."
+        : "Não foi possível contatar o serviço de leitura. Confira a chave do Gemini na Vercel e tente novamente.",
       504,
     );
   }
@@ -87,10 +102,14 @@ async function extractGemini(content: Buffer, mimeType: string) {
       "Cota do Gemini indisponível ou limite de leituras atingido. Verifique a cota no Google AI Studio e tente novamente mais tarde.",
       429,
     );
-  if ([400, 401, 403, 404].includes(response.status))
+  if ([400, 401, 403, 404].includes(response.status)) {
+    console.error(
+      `[documents] gemini http=${response.status} model=${model} bytes=${content.length}`,
+    );
     throw new DocumentExtractionError(
       "O Gemini não autorizou a leitura. Verifique a chave, o modelo e as permissões do projeto.",
     );
+  }
   if (!response.ok)
     throw new DocumentExtractionError(
       "O Gemini está indisponível. Tente novamente mais tarde.",
