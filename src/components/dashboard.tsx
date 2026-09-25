@@ -468,7 +468,7 @@ export default function Dashboard({
                       {notificationLabel(n)}
                     </span>
                     {!demo &&
-                      ["FAILED", "UNCONFIGURED", "PENDING"].includes(
+                      ["FAILED", "UNCONFIGURED", "PENDING", "NO_CONSENT"].includes(
                         n.status,
                       ) && (
                         <button
