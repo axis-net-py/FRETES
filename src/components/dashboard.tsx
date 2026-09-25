@@ -71,6 +71,7 @@ export type DashboardData = {
     id: string;
     body: string;
     status: string;
+    provider?: string;
     error?: string;
     createdAt: string;
     container: { code: string };
@@ -97,6 +98,11 @@ const date = (d: string) =>
     minute: "2-digit",
     timeZone: "America/Sao_Paulo",
   });
+export function notificationLabel(n: { status: string; provider?: string }) {
+  if (n.status === "ACCEPTED" && n.provider === "email")
+    return "Enviado por e-mail";
+  return labels[n.status] || n.status;
+}
 export function Badge({ status }: { status: string }) {
   return (
     <span className={`badge ${status.toLowerCase()}`}>
@@ -438,8 +444,8 @@ export default function Dashboard({
             <div>
               <h2>Histórico de avisos</h2>
               <p>
-                “Aceita pela Meta” confirma a aceitação pela API, não a entrega
-                ao cliente.
+                “Aceito” confirma o envio ao provedor (Meta ou e-mail), não a
+                leitura pelo destinatário.
               </p>
             </div>
           </div>
@@ -456,7 +462,10 @@ export default function Dashboard({
                     )}
                   </div>
                   <div className="space-y-3">
-                    <Badge status={n.status} />
+                    <span className={`badge ${n.status.toLowerCase()}`}>
+                      <span />
+                      {notificationLabel(n)}
+                    </span>
                     {!demo &&
                       ["FAILED", "UNCONFIGURED", "PENDING"].includes(
                         n.status,
@@ -648,7 +657,7 @@ export default function Dashboard({
                   </span>
                   <div>
                     <b>{n.container.code}</b>
-                    <p>{labels[n.status] || n.status}</p>
+                    <p>{notificationLabel(n)}</p>
                   </div>
                   <small className="ml-auto">{date(n.createdAt)}</small>
                 </div>
