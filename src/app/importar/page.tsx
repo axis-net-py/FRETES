@@ -366,7 +366,6 @@ function Importer() {
                     "truckPlate",
                   ].includes(k)}
                   maxLength={k === "code" ? 11 : 160}
-                  placeholder={k === "freightValue" ? "2200.00" : ""}
                 />
               </label>
             ))}

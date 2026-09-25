@@ -108,13 +108,13 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "português",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 4, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
-  assert.equal(shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
-  assert.equal(shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 6, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
+  assert.equal(shouldReExtract({ promptVersion: 6, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
   assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, 0), true);
   assert.equal(shouldReExtract(null, 0), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 5, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
+    shouldReExtract({ promptVersion: 6, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
     false,
   );
 });
@@ -183,12 +183,14 @@ test("sanitizer strips carrier clients and scheduling numbers without touching v
   assert.ok(guide.notes.join(" ").includes("Armador"));
   const dupes = sanitizeExtractedFields({
     ...emptyFields,
-    code: "MRSU2904847",
+    code: "BR366200409",
     micDta: "MRSU2904847",
     crt: "MRSU2904847",
   });
+  assert.equal(dupes.fields.code, "");
   assert.equal(dupes.fields.micDta, "");
   assert.equal(dupes.fields.crt, "");
+  assert.ok(dupes.notes.join(" ").includes("padrão de contêiner"));
   const valid = sanitizeExtractedFields({
     ...emptyFields,
     clientName: "Transportes Reais S.A.",
