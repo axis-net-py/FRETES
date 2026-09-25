@@ -172,6 +172,7 @@ test("Gemini sends inline documents and validates output, quota and refusal with
         "application/pdf",
       );
       assert.equal(body.generationConfig.responseMimeType, "application/json");
+      assert.equal(body.generationConfig.thinkingConfig.thinkingBudget, 0);
       return new Response(JSON.stringify(payload), { status });
     },
   );

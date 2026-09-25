@@ -54,7 +54,7 @@ async function extractGemini(content: Buffer, mimeType: string) {
           "x-goog-api-key": apiKey,
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(50000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: documentInstructions }] },
           contents: [
@@ -68,7 +68,8 @@ async function extractGemini(content: Buffer, mimeType: string) {
           ],
           generationConfig: {
             temperature: 0,
-            maxOutputTokens: 4096,
+            maxOutputTokens: 2048,
+            thinkingConfig: { thinkingBudget: 0 },
             responseMimeType: "application/json",
             responseSchema: {
               type: "OBJECT",
