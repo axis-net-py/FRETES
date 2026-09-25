@@ -106,12 +106,13 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "português",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, null), false);
-  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "" } }, null), true);
+  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, null), true);
+  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, null), false);
+  assert.equal(shouldReExtract({ promptVersion: 3, fields: { code: "" } }, null), true);
   assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, null), true);
   assert.equal(shouldReExtract(null, null), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, "freight-1"),
+    shouldReExtract({ promptVersion: 3, fields: { code: "MRSU2904847" } }, "freight-1"),
     false,
   );
 });
