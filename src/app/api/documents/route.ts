@@ -5,6 +5,7 @@ import { detectDocumentType } from "@/lib/document-fields";
 import {
   extractDocument,
   DocumentExtractionError,
+  shouldReExtract,
 } from "@/lib/document-extraction";
 import { documentProvider } from "@/lib/document-provider";
 import { apiError } from "@/lib/api";
@@ -57,13 +58,8 @@ export async function POST(req: Request) {
       where: { sha256 },
       select: { id: true, extracted: true, containerId: true },
     });
-    const previous = existing?.extracted as
-      { fields?: { code?: string } } | undefined;
-    if (
-      existing &&
-      (existing.containerId ||
-        previous?.fields?.code)
-    )
+    // Re-read files stored under older instructions; linked freights keep theirs.
+    if (existing && !shouldReExtract(existing.extracted, existing.containerId))
       return NextResponse.json(existing);
     // Shared, persistent limit also applies across serverless instances.
     const bucket = `document-upload:${Math.floor(Date.now() / 3600000)}`;

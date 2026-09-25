@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   extractDocument,
   DocumentExtractionError,
+  documentInstructions,
+  shouldReExtract,
 } from "../src/lib/document-extraction.ts";
 import { documentProvider } from "../src/lib/document-provider.ts";
 import {
@@ -92,6 +94,27 @@ test("uses actual file signatures rather than filename or claimed MIME", () => {
   );
 });
 
+test("extraction rules reject scheduling-guide traps and re-read stale documents", () => {
+  for (const rule of [
+    "4 letras e 7 números",
+    "NÚMERO DO DOCUMENTO",
+    "Peso bruto",
+    "nunca invente moeda",
+    "transportadora nunca é origem",
+    "Laden Dely",
+    "Guia de Agendamento",
+    "português",
+  ])
+    assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
+  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, null), false);
+  assert.equal(shouldReExtract({ promptVersion: 2, fields: { code: "" } }, null), true);
+  assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, null), true);
+  assert.equal(shouldReExtract(null, null), true);
+  assert.equal(
+    shouldReExtract({ promptVersion: 2, fields: { code: "MRSU2904847" } }, "freight-1"),
+    false,
+  );
+});
 test("Gemini trims pasted credentials and distinguishes transport failures", async (t) => {
   const previousKey = process.env.GEMINI_API_KEY;
   const previousModel = process.env.GEMINI_DOCUMENT_MODEL;
