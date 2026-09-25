@@ -6,7 +6,10 @@ export function departureEmail(container: {
   origin: string | null;
   destination: string | null;
   departedAt: Date | null;
+  truckPlate: string | null;
+  trailerPlate: string | null;
   client: { name: string };
+  driver: { name: string } | null;
   parameters: string;
 }) {
   let trackingLink = "";
@@ -29,6 +32,8 @@ export function departureEmail(container: {
     "Saída do porto confirmada pelo rastreamento.",
     `Cliente: ${container.client.name}`,
     `Container: ${container.code}`,
+    `Motorista: ${container.driver?.name || "a confirmar"}`,
+    `Cavalo: ${container.truckPlate || "a confirmar"} · Carreta: ${container.trailerPlate || "a confirmar"}`,
     `Trajeto: ${container.origin || "origem a confirmar"} → ${container.destination || "destino a confirmar"}`,
     `Saída: ${departedText} (horário de Brasília)`,
     `Previsão: ${etaText || "a confirmar"}`,
@@ -46,7 +51,7 @@ export async function dispatchNotification(
 ) {
   const n = await prisma.notification.findUnique({
     where: { id },
-    include: { container: { include: { client: true } } },
+    include: { container: { include: { client: true, driver: true } } },
   });
   if (
     !n ||
@@ -103,7 +108,10 @@ type DispatchableNotification = {
     origin: string | null;
     destination: string | null;
     departedAt: Date | null;
+    truckPlate: string | null;
+    trailerPlate: string | null;
     client: { name: string; consent: boolean };
+    driver: { name: string } | null;
   };
 };
 
@@ -137,7 +145,10 @@ async function dispatchEmail(
         origin: n.container.origin,
         destination: n.container.destination,
         departedAt: n.container.departedAt,
+        truckPlate: n.container.truckPlate,
+        trailerPlate: n.container.trailerPlate,
         client: { name: n.container.client.name },
+        driver: n.container.driver ? { name: n.container.driver.name } : null,
         parameters: n.parameters,
       }),
       transport,

@@ -67,7 +67,10 @@ test("departure email stays within ops context and never carries secrets", () =>
     origin: "Porto de Paranaguá",
     destination: "Santa Rita - PY",
     departedAt: new Date("2026-09-25T15:00:00Z"),
+    truckPlate: "ABCD519",
+    trailerPlate: "ABBK035",
     client: { name: "COTRIPAR S.A." },
+    driver: { name: "EDERSON FACHINI" },
     parameters: JSON.stringify([
       "COTRIPAR S.A.",
       "MRSU2904847",
@@ -79,6 +82,9 @@ test("departure email stays within ops context and never carries secrets", () =>
   });
   assert.ok(mail.subject.includes("MRSU2904847"));
   assert.ok(mail.text.includes("COTRIPAR S.A."));
+  assert.ok(mail.text.includes("EDERSON FACHINI"));
+  assert.ok(mail.text.includes("ABCD519"));
+  assert.ok(mail.text.includes("ABBK035"));
   assert.ok(mail.text.includes("Santa Rita - PY"));
   assert.ok(!mail.text.includes("secret-token") || mail.text.includes("acompanhar"));
 });
@@ -141,7 +147,10 @@ test("dispatch prefers email-ops without client consent when WhatsApp is down", 
       origin: "O",
       destination: "D",
       departedAt: null,
+      truckPlate: "ABC1234",
+      trailerPlate: null,
       client: { name: "C", consent: false },
+      driver: { name: "D" },
     },
   };
   const updates: Array<{ status?: string }> = [];

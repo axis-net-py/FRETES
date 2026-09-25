@@ -6,9 +6,34 @@ import {
   extractDocument,
   DocumentExtractionError,
   shouldReExtract,
+  type DocumentExtraction,
 } from "@/lib/document-extraction";
+import { repairTripsFromText } from "@/lib/document-pdf";
 import { documentProvider } from "@/lib/document-provider";
 import { apiError } from "@/lib/api";
+
+async function repairFromPdfText(
+  content: Buffer,
+  mimeType: string,
+  extracted: DocumentExtraction,
+): Promise<DocumentExtraction> {
+  if (
+    mimeType !== "application/pdf" ||
+    !extracted.trips.some((trip) => !trip.fields.code || !trip.fields.micDta)
+  )
+    return extracted;
+  try {
+    const pdfModule = (await import("pdf-parse")) as unknown as
+      | { default: (data: Buffer) => Promise<{ text: string }> }
+      | ((data: Buffer) => Promise<{ text: string }>);
+    const parse = typeof pdfModule === "function" ? pdfModule : pdfModule.default;
+    const text = (await parse(content)).text || "";
+    if (!text.trim()) return extracted;
+    return { ...extracted, trips: repairTripsFromText(extracted.trips, text) };
+  } catch {
+    return extracted;
+  }
+}
 export const maxDuration = 60;
 const documentLinksSelect = {
   select: {
@@ -83,7 +108,7 @@ export async function POST(req: Request) {
         { error: "Limite de 30 leituras por hora atingido. Tente mais tarde." },
         { status: 429 },
       );
-    const extracted = await extractDocument(content, mimeType);
+    const extracted = await repairFromPdfText(content, mimeType, await extractDocument(content, mimeType));
     if (existing) {
       await prisma.tripDocument.update({
         where: { id: existing.id },

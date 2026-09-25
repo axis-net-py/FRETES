@@ -11,7 +11,7 @@
     "db:push": "prisma db push",
     "postinstall": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "test": "node --env-file-if-exists=.env --import tsx --test tests/geofence.test.ts tests/documents.test.ts tests/document-delete.test.ts tests/drivers.test.ts tests/email.test.ts tests/email-test-route.test.ts tests/route-estimate.test.ts tests/globalsat-client.test.ts tests/globalsat-sync.test.ts tests/globalsat-routes.test.ts",
+    "test": "node --env-file-if-exists=.env --import tsx --test tests/geofence.test.ts tests/documents.test.ts tests/document-delete.test.ts tests/document-pdf.test.ts tests/drivers.test.ts tests/email.test.ts tests/email-test-route.test.ts tests/route-estimate.test.ts tests/globalsat-client.test.ts tests/globalsat-sync.test.ts tests/globalsat-routes.test.ts",
     "test:integration": "node --env-file-if-exists=.env.test --import tsx --test --test-concurrency=1 tests/integration.test.ts tests/import-integration.test.ts"
   },
   "dependencies": {
@@ -22,6 +22,7 @@
     "jose": "^6.2.12",
     "next": "^15.5.25",
     "nodemailer": "^10.0.10",
+    "pdf-parse": "^2.4.5",
     "prisma": "^5.22.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -33,6 +34,7 @@
     "@capacitor/ios": "^6.2.2",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.2",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "eslint": "^8",
