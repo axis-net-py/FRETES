@@ -35,7 +35,10 @@ function Importer() {
     [geofenceId, setGeofenceId] = useState(""),
     [transitHours, setTransitHours] = useState(""),
     [planning, setPlanning] = useState(false);
-  async function reload() {
+  type Lists = { clients: Row[]; drivers: Row[]; gates: Row[] };
+  async function reload(): Promise<
+    Lists & { docs: Doc[]; ready: boolean; provider: string }
+  > {
     const results = await Promise.all(
       ["documents", "clients", "drivers", "geofences"].map(async (p) => {
         const r = await fetch("/api/" + p);
@@ -43,32 +46,44 @@ function Importer() {
         return r.json();
       }),
     );
-    setDocs(results[0].documents);
-    setReady(results[0].ready);
-    setProvider(results[0].provider);
-    setClients(results[1]);
-    setDrivers(results[2]);
-    setGates(results[3]);
+    const fresh = {
+      docs: results[0].documents as Doc[],
+      ready: results[0].ready as boolean,
+      provider: results[0].provider as string,
+      clients: results[1] as Row[],
+      drivers: results[2] as Row[],
+      gates: results[3] as Row[],
+    };
+    setDocs(fresh.docs);
+    setReady(fresh.ready);
+    setProvider(fresh.provider);
+    setClients(fresh.clients);
+    setDrivers(fresh.drivers);
+    setGates(fresh.gates);
+    return fresh;
   }
   useEffect(() => {
     reload().catch((e) => setMessage(e.message));
   }, []);
-  function select(d: Doc) {
+  function select(d: Doc, lists?: Lists) {
+    const knownClients = lists?.clients ?? clients;
+    const knownDrivers = lists?.drivers ?? drivers;
+    const knownGates = lists?.gates ?? gates;
     setDoc(d);
     setFields({ ...emptyFields, ...d.extracted.fields });
-    const matches = clients.filter(
+    const matches = knownClients.filter(
       (c) =>
         normalizeName(c.name) === normalizeName(d.extracted.fields.clientName),
     );
     setClientId(matches.length === 1 ? matches[0].id : "");
     const matchedDriver = findMatchingDriver(
-      drivers,
+      knownDrivers,
       d.extracted.fields.driverName,
       d.extracted.fields.truckPlate,
     );
     setDriverId(matchedDriver?.id ?? "");
     setGeofenceId(
-      gates.find((g) => g.active && normalizeName(g.name).includes("PARANAGUA"))
+      knownGates.find((g) => g.active && normalizeName(g.name).includes("PARANAGUA"))
         ?.id || "",
     );
     setTransitHours("");
@@ -117,11 +132,9 @@ function Importer() {
         throw new Error(
           d?.error || `Falha no envio (HTTP ${r.status}). Tente novamente.`,
         );
-      select(d);
-      await Promise.all([
-        reload(),
-        estimatePlanning(d.extracted.fields.destination),
-      ]);
+      const fresh = await reload();
+      select(d, fresh);
+      await estimatePlanning(d.extracted.fields.destination);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha no envio.");
     } finally {
