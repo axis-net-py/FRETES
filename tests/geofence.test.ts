@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { distanceMeters } from "../src/lib/geo.ts";
-import { reliableInside, reliableOutside } from "../src/lib/geofence-policy.ts";
+import { reliableInside, reliableOutside, returningToGate } from "../src/lib/geofence-policy.ts";
 import { createSession, validSession } from "../src/lib/session.ts";
 import { validPositionTime } from "../src/lib/geofence-engine.ts";
 const gate = { latitude: -23.94, longitude: -46.31, radiusM: 300 };
@@ -54,6 +54,29 @@ test("outside fixes do not trigger", () =>
     reliableInside({ ...fix, latitude: gate.latitude + 0.02 }, gate, now),
     false,
   ));
+test("exit holds while approaching and confirms when leaving or parked", () => {
+  const candidate = { latitude: gate.latitude + 0.006, longitude: gate.longitude };
+  // ~650m out, back to ~200m: clearly returning, hold the exit.
+  assert.equal(
+    returningToGate(
+      { latitude: gate.latitude + 0.002, longitude: gate.longitude },
+      candidate,
+      gate,
+    ),
+    true,
+  );
+  // Still moving away: confirm.
+  assert.equal(
+    returningToGate(
+      { latitude: gate.latitude + 0.008, longitude: gate.longitude },
+      candidate,
+      gate,
+    ),
+    false,
+  );
+  // Parked just outside (jitter-scale drift): confirm, do not hold forever.
+  assert.equal(returningToGate(candidate, candidate, gate), false);
+});
 test("session signatures are verified and tampering rejected", async () => {
   process.env.SESSION_SECRET = "test-only-secret-".repeat(4);
   const token = await createSession();

@@ -20,6 +20,18 @@ export function reliableOutside(
     distanceMeters(input, gate) - input.accuracyM >= gate.radiusM + 50
   );
 }
+// True when the truck is clearly heading back toward the gate instead of
+// leaving: current distance shrank well beyond GPS jitter since the
+// candidate fix. Stationary or leaving fixes return false.
+export function returningToGate(
+  current: { latitude: number; longitude: number },
+  candidate: { latitude: number; longitude: number },
+  gate: { latitude: number; longitude: number },
+) {
+  return (
+    distanceMeters(current, gate) < distanceMeters(candidate, gate) - 100
+  );
+}
 export function reliableInside(
   input: Fix,
   gate: { latitude: number; longitude: number; radiusM: number },

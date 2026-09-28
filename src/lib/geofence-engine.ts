@@ -1,7 +1,11 @@
 import { randomBytes, createHash } from "node:crypto";
-import { reliableInside, reliableOutside } from "./geofence-policy";
+import { reliableInside, reliableOutside, returningToGate } from "./geofence-policy";
 import { prisma } from "./prisma";
 import { dispatchNotification } from "./notifications";
+
+// Minimum time inside the gate before an exit can confirm. Kills
+// drive-by pass-throughs on nearby roads; port queues take hours.
+const ENTERED_DWELL_MS = 5 * 60 * 1000;
 
 export type PositionInput = {
   driverId: string;
@@ -147,6 +151,32 @@ export async function processPosition(
       }
       if (elapsed < 30000) {
         await tx.container.update({ where: { id: c.id }, data: common });
+        return null;
+      }
+      // The truck must have actually operated inside the gate (queue,
+      // loading, paperwork): drive-by pass-throughs never confirm.
+      if (fixAt.getTime() - c.gateEnteredAt.getTime() < ENTERED_DWELL_MS) {
+        await tx.container.update({ where: { id: c.id }, data: common });
+        return null;
+      }
+      // Cancel when the truck is heading back instead of leaving.
+      const previous = await tx.position.findFirst({
+        where: {
+          containerId: c.id,
+          recordedAt: { lt: c.exitCandidateAt },
+        },
+        orderBy: { recordedAt: "desc" },
+      });
+      if (
+        previous &&
+        c.exitCandidateAt.getTime() - previous.recordedAt.getTime() <=
+          15 * 60 * 1000 &&
+        returningToGate(input, previous, gate)
+      ) {
+        await tx.container.update({
+          where: { id: c.id },
+          data: { ...common, exitCandidateAt: null },
+        });
         return null;
       }
       const departedAt = c.exitCandidateAt;
