@@ -46,7 +46,7 @@ export async function processPosition(
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.containerId}))`;
       const c = await tx.container.findFirst({
         where: { id: input.containerId, driverId: input.driverId },
-        include: { client: true },
+        include: { client: true, driver: true },
       });
       if (!c) throw new Error("Frete não vinculado ao motorista");
       if (
@@ -221,10 +221,15 @@ export async function processPosition(
             timeStyle: "short",
           }) + " (horário de Brasília; estimativa)"
         : "A confirmar pela transportadora";
+      const crew = [c.driver?.name, [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")]
+        .filter(Boolean)
+        .join(" · ");
       const parameters = [
         c.client.name,
         c.code,
-        "Saiu da área do portão e iniciou o trajeto",
+        crew
+          ? `saiu da área do portão com ${crew} e iniciou o trajeto`
+          : "saiu da área do portão e iniciou o trajeto",
         c.destination || "Destino a confirmar",
         etaText,
         link,
