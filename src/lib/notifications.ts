@@ -49,14 +49,14 @@ export function departureEmail(
     `Container: ${container.code}`,
     `Motorista: ${container.driver?.name || "a confirmar"}`,
     `Cavalo: ${container.truckPlate || "a confirmar"} · Carreta: ${container.trailerPlate || "a confirmar"}`,
-    `Trajeto: ${container.origin || "origem a confirmar"} → ${container.destination || "destino a confirmar"}`,
+    `Trajeto: ${container.origin || "origem a confirmar"} �  ${container.destination || "destino a confirmar"}`,
   ];
   if (kind === "DEPARTURE")
     lines.push(`Saída: ${departedText} (horário de Brasília)`);
   lines.push(`Previsão: ${etaText || "a confirmar"}`);
   if (trackingLink) lines.push(`Acompanhamento: ${trackingLink}`);
   return {
-    subject: `[FRETES] ${msg.subject} — container ${container.code}`,
+    subject: `[FRETES] ${msg.subject} � container ${container.code}`,
     text: lines.join("\n"),
   };
 }
@@ -202,58 +202,102 @@ async function dispatchEmail(
   }
 }
 
+export function whatsappOpsNumbers(): string[] {
+  return (process.env.WHATSAPP_OPS_NUMBERS || "")
+    .split(",")
+    .map((value) => value.replace(/\D/g, ""))
+    .filter((value) => value.length >= 10);
+}
+
+async function sendTemplateMessage(
+  creds: { token: string; phone: string; version: string; template: string },
+  to: string,
+  parameters: string,
+) {
+  const response = await fetch(
+    `https://graph.facebook.com/${creds.version}/${creds.phone}/messages`,
+    {
+      method: "POST",
+      signal: AbortSignal.timeout(12000),
+      headers: {
+        Authorization: `Bearer ${creds.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to,
+        type: "template",
+        template: {
+          name: creds.template,
+          language: { code: process.env.META_TEMPLATE_LANGUAGE || "pt_BR" },
+          components: [
+            {
+              type: "body",
+              parameters: (JSON.parse(parameters) as string[]).map((text) => ({
+                type: "text",
+                text,
+              })),
+            },
+          ],
+        },
+      }),
+    },
+  );
+  const payload = await response.json();
+  if (!response.ok || !payload.messages?.[0]?.id)
+    throw new Error(
+      `Meta recusou para ${to} (HTTP ${response.status}; c�digo ${payload.error?.code || "indispon�vel"}).`,
+    );
+  return payload.messages[0].id as string;
+}
+
 async function dispatchWhatsApp(
   n: DispatchableNotification,
   creds: { token: string; phone: string; version: string; template: string },
 ) {
-  const { token, phone, version, template } = creds;
+  const recipients: { to: string; ops: boolean }[] = [];
+  if (n.container.client.consent && n.to.replace(/\D/g, ""))
+    recipients.push({ to: n.to.replace(/\D/g, ""), ops: false });
+  for (const ops of whatsappOpsNumbers())
+    if (!recipients.some((recipient) => recipient.to === ops))
+      recipients.push({ to: ops, ops: true });
+  if (!recipients.length)
+    return prisma.notification.update({
+      where: { id: n.id },
+      data: { status: "NO_CONSENT", error: "Cliente não autorizou avisos." },
+    });
   try {
-    const response = await fetch(
-      `https://graph.facebook.com/${version}/${phone}/messages`,
-      {
-        method: "POST",
-        signal: AbortSignal.timeout(12000),
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: n.to.replace(/\D/g, ""),
-          type: "template",
-          template: {
-            name: template,
-            language: { code: process.env.META_TEMPLATE_LANGUAGE || "pt_BR" },
-            components: [
-              {
-                type: "body",
-                parameters: (JSON.parse(n.parameters) as string[]).map(
-                  (text) => ({ type: "text", text }),
-                ),
-              },
-            ],
-          },
-        }),
-      },
-    );
-    const payload = await response.json();
-    if (!response.ok)
+    const results: { to: string; ops: boolean; id?: string; error?: string }[] =
+      [];
+    for (const recipient of recipients) {
+      try {
+        results.push({
+          ...recipient,
+          id: await sendTemplateMessage(creds, recipient.to, n.parameters),
+        });
+      } catch (error) {
+        results.push({
+          ...recipient,
+          error: error instanceof Error ? error.message : "Falha no envio.",
+        });
+      }
+    }
+    const primary = results.find((result) => !result.ops) || results[0];
+    if (!primary.id)
       return prisma.notification.update({
         where: { id: n.id },
-        data: {
-          status: "FAILED",
-          error: `Meta recusou o envio (HTTP ${response.status}; código ${payload.error?.code || "indisponível"}).`,
-        },
+        data: { status: "FAILED", error: primary.error || "Meta recusou o envio." },
       });
-    if (!payload.messages?.[0]?.id)
-      throw new Error("Resposta sem identificador");
+    const failedCopies = results.filter((result) => !result.id);
     return await prisma.notification.update({
       where: { id: n.id },
       data: {
         status: "ACCEPTED",
         provider: "meta",
-        providerRef: payload.messages[0].id,
-        error: null,
+        providerRef: primary.id,
+        error: failedCopies.length
+          ? `Cópia operacional pendente: ${failedCopies.map((result) => result.to).join(", ")}.`
+          : null,
       },
     });
   } catch {
