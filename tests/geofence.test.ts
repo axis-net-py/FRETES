@@ -54,6 +54,35 @@ test("outside fixes do not trigger", () =>
     reliableInside({ ...fix, latitude: gate.latitude + 0.02 }, gate, now),
     false,
   ));
+test("trusted historical fixes evaluate at GPS time, device fixes need live clock", () => {
+  const oldFix = {
+    ...fix,
+    recordedAt: new Date(now - 3 * 3600000).toISOString(),
+  };
+  assert.equal(reliableInside(oldFix, gate, now), false);
+  assert.equal(
+    reliableInside(
+      oldFix,
+      gate,
+      new Date(oldFix.recordedAt).getTime() + 30000,
+    ),
+    true,
+  );
+  const futureFix = {
+    ...fix,
+    recordedAt: new Date(now + 60000).toISOString(),
+  };
+  // Policy evaluates at GPS time; future rejection stays in
+  // validPositionTime, which always uses the wall clock.
+  assert.equal(
+    reliableInside(
+      futureFix,
+      gate,
+      new Date(futureFix.recordedAt).getTime() + 30000,
+    ),
+    true,
+  );
+});
 test("exit holds while approaching and confirms when leaving or parked", () => {
   const candidate = { latitude: gate.latitude + 0.006, longitude: gate.longitude };
   // ~650m out, back to ~200m: clearly returning, hold the exit.

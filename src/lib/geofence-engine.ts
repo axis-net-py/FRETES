@@ -86,8 +86,13 @@ export async function processPosition(
           externalId: options.externalId,
         },
       });
-      const inside = reliableInside(input, gate),
-        outside = reliableOutside(input, gate);
+      // Trusted sources (GlobalSAT) arrive in delayed batches: evaluate the
+      // fix at GPS time so history is judged, not the processing delay.
+      // Device fixes keep wall-clock freshness (live GPS required).
+      const evaluationNow =
+        source === "GLOBALSAT" ? fixAt.getTime() + 30000 : Date.now();
+      const inside = reliableInside(input, gate, evaluationNow),
+        outside = reliableOutside(input, gate, evaluationNow);
       const common = { lastGeofenceFixAt: fixAt };
       if (inside) {
         await tx.container.update({
