@@ -27,6 +27,44 @@ import {
   STATUS_LABELS,
   ContainerStatus,
 } from "@/lib/status";
+import { gateCompleted } from "@/lib/journey";
+function JourneyProgress({
+  freight,
+  gates,
+}: {
+  freight: Freight;
+  gates: DashboardData["gates"];
+}) {
+  const journey = [...gates]
+    .filter((g) => g.active)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  if (journey.length < 2) return null;
+  const events = (freight.events || []).map((e) => ({
+    geofenceId: e.geofenceId,
+    type: e.type,
+  }));
+  const current = journey.find((g) => !gateCompleted(g, events));
+  return (
+    <div className="mt-5">
+      <h3 className="font-semibold mb-2">Roteiro da viagem</h3>
+      <ol className="space-y-2">
+        {journey.map((g) => {
+          const done = gateCompleted(g, events);
+          const isCurrent = current?.id === g.id;
+          return (
+            <li key={g.id} className="flex items-center gap-2 text-sm">
+              <span aria-hidden="true">{done ? "✅" : isCurrent ? "📍" : "○"}</span>
+              <span>
+                {g.name}
+                {done ? " · concluído" : isCurrent ? " · atual" : ""}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
 import type { GlobalSatDashboardState } from "@/lib/globalsat-status";
 export type Freight = {
   id: string;
@@ -54,7 +92,7 @@ export type Freight = {
   client: { name: string };
   driver: { name: string; plate?: string } | null;
   updatedAt: string;
-  events?: { id: string; createdAt: string }[];
+  events?: { id: string; geofenceId: string; type: string; createdAt: string }[];
 };
 export type DashboardData = {
   containers: Freight[];
@@ -67,6 +105,10 @@ export type DashboardData = {
     longitude: number;
     radiusM: number;
     active: boolean;
+    kind: string;
+    notifyOnEnter: boolean;
+    notifyOnExit: boolean;
+    createdAt: string;
   }[];
   notifications: {
     id: string;
@@ -90,6 +132,9 @@ const labels: Record<string, string> = {
   FAILED: "Falha no envio",
   UNKNOWN: "Verificar na Meta",
   SIMULATED: "Exemplo",
+  MULTILOG_ARRIVAL: "Chegada à Multilog",
+  CUSTOMS_ENTRY: "Entrada na aduana",
+  CUSTOMS_EXIT: "Saída da aduana",
 };
 const date = (d: string) =>
   new Date(d).toLocaleString("pt-BR", {
@@ -170,7 +215,7 @@ export default function Dashboard({
       (c) => c.status === "CHEGADA_PORTAO",
     ).length,
     delivered = data.containers.filter((c) => c.status === "ENTREGUE").length;
-  const gate = data.gates[0];
+  const gate = data.gates.find((g) => g.kind === "PORT_EXIT") || data.gates[0];
   async function action(url: string, method = "POST", body?: unknown) {
     setBusy(true);
     setFeedback("");
@@ -924,6 +969,7 @@ export default function Dashboard({
                 {selected.origin} → {selected.destination}
               </dd>
             </dl>
+            <JourneyProgress freight={selected} gates={data.gates} />
             {demo ? (
               <p>
                 Entre na operação para cadastrar e acompanhar seus próprios

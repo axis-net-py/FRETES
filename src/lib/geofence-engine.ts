@@ -1,7 +1,157 @@
 import { randomBytes, createHash } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { reliableInside, reliableOutside, returningToGate } from "./geofence-policy";
+import {
+  journeyTarget,
+  notificationKindFor,
+  eventMessage,
+} from "./journey";
 import { prisma } from "./prisma";
 import { dispatchNotification } from "./notifications";
+
+type CheckpointContainer = {
+  id: string;
+  code: string;
+  status: string;
+  destination: string | null;
+  transitHours: number | null;
+  estimatedArrivalAt: Date | null;
+  client: { name: string; whatsapp: string; consent: boolean };
+  driver: { name: string } | null;
+  truckPlate: string | null;
+  trailerPlate: string | null;
+};
+
+type CheckpointOutcome = {
+  status: string;
+  gate: { id: string; name: string };
+  containerId: string;
+  code: string;
+  notificationId: string | null;
+};
+
+async function latestTrackingLink(
+  tx: Prisma.TransactionClient,
+  containerId: string,
+) {
+  const previous = await tx.notification.findFirst({
+    where: { containerId, kind: "DEPARTURE" },
+    orderBy: { createdAt: "desc" },
+    select: { parameters: true },
+  });
+  try {
+    const parsed = JSON.parse(previous?.parameters || "") as unknown;
+    return Array.isArray(parsed) && typeof parsed[5] === "string"
+      ? parsed[5]
+      : "";
+  } catch {
+    return "";
+  }
+}
+
+async function notifyCheckpoint(
+  tx: Prisma.TransactionClient,
+  args: {
+    gate: { id: string; name: string; kind: string };
+    event: "ENTER" | "EXIT";
+    at: Date;
+    input: PositionInput;
+    container: CheckpointContainer;
+  },
+): Promise<CheckpointOutcome> {
+  const { gate, event, at, input, container: c } = args;
+  const kind = notificationKindFor(gate.kind, event);
+  const crew = [
+    c.driver?.name,
+    [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / "),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const msg = eventMessage(kind, crew);
+  let link = "";
+  const departedAt = at;
+  let estimatedArrivalAt = c.estimatedArrivalAt;
+  if (gate.kind === "PORT_EXIT" && event === "EXIT") {
+    estimatedArrivalAt = c.transitHours
+      ? new Date(at.getTime() + c.transitHours * 3600000)
+      : null;
+    const token = randomBytes(32).toString("hex");
+    link = `${(process.env.APP_URL || "https://axis-fretes.vercel.app").replace(/\/$/, "")}/acompanhar#${token}`;
+    await tx.container.update({
+      where: { id: c.id },
+      data: {
+        status: "A_CAMINHO_DESTINO",
+        departedAt,
+        estimatedArrivalAt,
+        exitCandidateAt: null,
+        gateEnteredAt: null,
+        customerTrackingHash: createHash("sha256")
+          .update(token)
+          .digest("hex"),
+        customerTrackingExpiresAt: new Date(Date.now() + 30 * 86400000),
+      },
+    });
+  } else {
+    link = await latestTrackingLink(tx, c.id);
+    await tx.container.update({
+      where: { id: c.id },
+      data: { gateEnteredAt: null, exitCandidateAt: null },
+    });
+  }
+  await tx.geofenceEvent.create({
+    data: {
+      geofenceId: gate.id,
+      containerId: c.id,
+      type: event,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      createdAt: at,
+    },
+  });
+  const etaText = estimatedArrivalAt
+    ? estimatedArrivalAt.toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        dateStyle: "short",
+        timeStyle: "short",
+      }) + " (horário de Brasília; estimativa)"
+    : "A confirmar pela transportadora";
+  const parameters = [
+    c.client.name,
+    c.code,
+    msg.eventText,
+    c.destination || "Destino a confirmar",
+    etaText,
+    link,
+  ];
+  const n = await tx.notification.create({
+    data: {
+      containerId: c.id,
+      to: c.client.whatsapp,
+      kind,
+      parameters: JSON.stringify(parameters),
+      body: `Olá ${parameters[0]}, ${parameters[2]}. Destino: ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
+      provider: process.env.WHATSAPP_PROVIDER || "disabled",
+      status:
+        c.client.consent && !!c.client.whatsapp ? "PENDING" : "NO_CONSENT",
+      error:
+        c.client.consent && !!c.client.whatsapp
+          ? null
+          : "WhatsApp ou autorização do cliente pendente.",
+    },
+  });
+  return {
+    status:
+      gate.kind === "PORT_EXIT" && event === "EXIT"
+        ? "A_CAMINHO_DESTINO"
+        : gate.kind === "PORT_EXIT"
+          ? "CHEGADA_PORTAO"
+          : c.status,
+    gate,
+    containerId: c.id,
+    code: c.code,
+    notificationId: n.id,
+  };
+}
 
 // Minimum time inside the gate before an exit can confirm. Kills
 // drive-by pass-throughs on nearby roads; port queues take hours.
@@ -59,25 +209,16 @@ export async function processPosition(
         return null;
       if (c.status === "ENTREGUE") return null;
       if (c.lastGeofenceFixAt && fixAt <= c.lastGeofenceFixAt) return null;
-      if (c.departedAt || c.status === "A_CAMINHO_DESTINO") {
-        await tx.position.create({
-          data: {
-            ...input,
-            recordedAt: fixAt,
-            source,
-            externalId: options.externalId,
-          },
-        });
-        await tx.container.update({
-          where: { id: c.id },
-          data: { lastGeofenceFixAt: fixAt },
-        });
-        return null;
-      }
-      const gate = c.geofenceId
-        ? await tx.geofence.findUnique({ where: { id: c.geofenceId } })
-        : null;
-      if (!gate?.active) return null;
+      const gates = await tx.geofence.findMany({
+        where: { active: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (!gates.length) return null;
+      const journeyEvents = await tx.geofenceEvent.findMany({
+        where: { containerId: c.id },
+        select: { geofenceId: true, type: true },
+      });
+      const gate = journeyTarget(gates, journeyEvents);
       await tx.position.create({
         data: {
           ...input,
@@ -86,6 +227,14 @@ export async function processPosition(
           externalId: options.externalId,
         },
       });
+      // Journey complete: keep silent tracking, no Decisions.
+      if (!gate) {
+        await tx.container.update({
+          where: { id: c.id },
+          data: { lastGeofenceFixAt: fixAt },
+        });
+        return null;
+      }
       // Trusted sources (GlobalSAT) arrive in delayed batches: evaluate the
       // fix at GPS time so history is judged, not the processing delay.
       // Device fixes keep wall-clock freshness (live GPS required).
@@ -101,7 +250,9 @@ export async function processPosition(
             ...common,
             exitCandidateAt: null,
             gateEnteredAt: c.gateEnteredAt || fixAt,
-            ...(c.status === "EM_TRANSITO" ? { status: "CHEGADA_PORTAO" } : {}),
+            ...(gate.kind === "PORT_EXIT" && c.status === "EM_TRANSITO"
+              ? { status: "CHEGADA_PORTAO" }
+              : {}),
           },
         });
         if (!c.gateEnteredAt) {
@@ -123,8 +274,16 @@ export async function processPosition(
               createdAt: fixAt,
             },
           });
+          if (gate.notifyOnEnter)
+            return notifyCheckpoint(tx, {
+              gate,
+              event: "ENTER",
+              at: fixAt,
+              input,
+              container: c,
+            });
           return {
-            status: "CHEGADA_PORTAO",
+            status: gate.kind === "PORT_EXIT" ? "CHEGADA_PORTAO" : c.status,
             gate,
             containerId: c.id,
             code: c.code,
@@ -184,26 +343,14 @@ export async function processPosition(
         });
         return null;
       }
-      const departedAt = c.exitCandidateAt;
-      const eta = c.transitHours
-        ? new Date(departedAt.getTime() + c.transitHours * 3600000)
-        : null;
-      const token = randomBytes(32).toString("hex");
-      const link = `${(process.env.APP_URL || "https://axis-fretes.vercel.app").replace(/\/$/, "")}/acompanhar#${token}`;
-      await tx.container.update({
-        where: { id: c.id },
-        data: {
-          ...common,
-          status: "A_CAMINHO_DESTINO",
-          departedAt,
-          estimatedArrivalAt: eta,
-          exitCandidateAt: null,
-          customerTrackingHash: createHash("sha256")
-            .update(token)
-            .digest("hex"),
-          customerTrackingExpiresAt: new Date(Date.now() + 30 * 86400000),
-        },
-      });
+      if (gate.notifyOnExit)
+        return notifyCheckpoint(tx, {
+          gate,
+          event: "EXIT",
+          at: c.exitCandidateAt,
+          input,
+          container: c,
+        });
       await tx.geofenceEvent.create({
         data: {
           geofenceId: gate.id,
@@ -211,51 +358,19 @@ export async function processPosition(
           type: "EXIT",
           latitude: input.latitude,
           longitude: input.longitude,
-          createdAt: departedAt,
+          createdAt: c.exitCandidateAt,
         },
       });
-      const etaText = eta
-        ? eta.toLocaleString("pt-BR", {
-            timeZone: "America/Sao_Paulo",
-            dateStyle: "short",
-            timeStyle: "short",
-          }) + " (horário de Brasília; estimativa)"
-        : "A confirmar pela transportadora";
-      const crew = [c.driver?.name, [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")]
-        .filter(Boolean)
-        .join(" · ");
-      const parameters = [
-        c.client.name,
-        c.code,
-        crew
-          ? `saiu da área do portão com ${crew} e iniciou o trajeto`
-          : "saiu da área do portão e iniciou o trajeto",
-        c.destination || "Destino a confirmar",
-        etaText,
-        link,
-      ];
-      const n = await tx.notification.create({
-        data: {
-          containerId: c.id,
-          to: c.client.whatsapp,
-          kind: "DEPARTURE",
-          parameters: JSON.stringify(parameters),
-          body: `Olá ${parameters[0]}, seu container ${parameters[1]} saiu da área do portão de saída. Destino: ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
-          provider: process.env.WHATSAPP_PROVIDER || "disabled",
-          status:
-            c.client.consent && !!c.client.whatsapp ? "PENDING" : "NO_CONSENT",
-          error:
-            c.client.consent && !!c.client.whatsapp
-              ? null
-              : "WhatsApp ou autorização do cliente pendente.",
-        },
+      await tx.container.update({
+        where: { id: c.id },
+        data: { ...common, gateEnteredAt: null, exitCandidateAt: null },
       });
       return {
-        status: "A_CAMINHO_DESTINO",
+        status: c.status,
         gate,
         containerId: c.id,
         code: c.code,
-        notificationId: n.id,
+        notificationId: null,
       };
     },
     { maxWait: 10000, timeout: 15000 },

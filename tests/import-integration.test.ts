@@ -47,6 +47,9 @@ test("import reuses normalized records, resolves vehicles, fixes gate, stores pl
           longitude: -48.52,
           radiusM: 300,
           status: "CHEGADA_PORTAO",
+          kind: "PORT_EXIT",
+          notifyOnEnter: false,
+          notifyOnExit: true,
         },
       })
     ).id;

@@ -66,6 +66,10 @@ const data: DashboardData = {
       longitude: -46.31056,
       radiusM: 300,
       active: true,
+      kind: "PORT_EXIT",
+      notifyOnEnter: false,
+      notifyOnExit: true,
+      createdAt: "2026-09-10T12:00:00Z",
     },
   ],
   notifications: [

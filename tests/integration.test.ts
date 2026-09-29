@@ -50,6 +50,9 @@ test("entry waits without WhatsApp; ordered sustained exit sends once, with ETA 
           longitude: 0,
           radiusM: 300,
           status: "CHEGADA_PORTAO",
+          kind: "PORT_EXIT",
+          notifyOnEnter: false,
+          notifyOnExit: true,
         },
       })
     ).id;

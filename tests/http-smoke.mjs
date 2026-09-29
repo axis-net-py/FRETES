@@ -80,6 +80,9 @@ try {
     latitude: 0,
     longitude: 0,
     radiusM: 300,
+    kind: "PORT_EXIT",
+    notifyOnEnter: false,
+    notifyOnExit: true,
   });
   const code = "TEST" + String(Date.now()).slice(-7);
   created.container = await create("/api/containers", {

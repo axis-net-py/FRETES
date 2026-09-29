@@ -138,6 +138,7 @@ export async function PATCH(
               document: { select: { id: true, filename: true } },
             },
           },
+          events: { orderBy: { createdAt: "desc" } },
         },
       });
     });

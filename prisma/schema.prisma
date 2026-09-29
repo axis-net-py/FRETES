@@ -34,6 +34,9 @@ model Geofence {
   radiusM   Int      @default(300)
   status    String
   active    Boolean  @default(true)
+  kind      String   @default("CHECKPOINT")
+  notifyOnEnter Boolean @default(true)
+  notifyOnExit Boolean @default(false)
   createdAt DateTime @default(now())
   events    GeofenceEvent[]
 }

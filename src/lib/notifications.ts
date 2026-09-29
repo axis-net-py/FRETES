@@ -1,17 +1,21 @@
 import { prisma } from "./prisma";
 import { emailOpsConfig, sendOpsEmail, type MailTransport } from "./email";
+import { eventMessage } from "./journey";
 
-export function departureEmail(container: {
-  code: string;
-  origin: string | null;
-  destination: string | null;
-  departedAt: Date | null;
-  truckPlate: string | null;
-  trailerPlate: string | null;
-  client: { name: string };
-  driver: { name: string } | null;
-  parameters: string;
-}) {
+export function departureEmail(
+  container: {
+    code: string;
+    origin: string | null;
+    destination: string | null;
+    departedAt: Date | null;
+    truckPlate: string | null;
+    trailerPlate: string | null;
+    client: { name: string };
+    driver: { name: string } | null;
+    parameters: string;
+  },
+  kind = "DEPARTURE",
+) {
   let trackingLink = "";
   let etaText = "";
   try {
@@ -21,6 +25,17 @@ export function departureEmail(container: {
   } catch {
     // Fall back to container fields below.
   }
+  const msg = eventMessage(
+    kind,
+    [
+      container.driver?.name,
+      [container.truckPlate, container.trailerPlate]
+        .filter(Boolean)
+        .join(" / "),
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  );
   const departedText = container.departedAt
     ? container.departedAt.toLocaleString("pt-BR", {
         timeZone: "America/Sao_Paulo",
@@ -29,18 +44,19 @@ export function departureEmail(container: {
       })
     : "a confirmar";
   const lines = [
-    "Saída do porto confirmada pelo rastreamento.",
+    msg.headline,
     `Cliente: ${container.client.name}`,
     `Container: ${container.code}`,
     `Motorista: ${container.driver?.name || "a confirmar"}`,
     `Cavalo: ${container.truckPlate || "a confirmar"} · Carreta: ${container.trailerPlate || "a confirmar"}`,
     `Trajeto: ${container.origin || "origem a confirmar"} → ${container.destination || "destino a confirmar"}`,
-    `Saída: ${departedText} (horário de Brasília)`,
-    `Previsão: ${etaText || "a confirmar"}`,
   ];
+  if (kind === "DEPARTURE")
+    lines.push(`Saída: ${departedText} (horário de Brasília)`);
+  lines.push(`Previsão: ${etaText || "a confirmar"}`);
   if (trackingLink) lines.push(`Acompanhamento: ${trackingLink}`);
   return {
-    subject: `[FRETES] Saída do porto — container ${container.code}`,
+    subject: `[FRETES] ${msg.subject} — container ${container.code}`,
     text: lines.join("\n"),
   };
 }
@@ -58,7 +74,14 @@ export async function dispatchNotification(
     !["PENDING", "FAILED", "UNCONFIGURED", "NO_CONSENT"].includes(n.status)
   )
     return n;
-  if (n.kind !== "DEPARTURE")
+  if (
+    ![
+      "DEPARTURE",
+      "MULTILOG_ARRIVAL",
+      "CUSTOMS_ENTRY",
+      "CUSTOMS_EXIT",
+    ].includes(n.kind)
+  )
     return prisma.notification.update({
       where: { id },
       data: {
@@ -72,9 +95,8 @@ export async function dispatchNotification(
     META_GRAPH_VERSION: version,
   } = process.env;
   const template =
-    n.kind === "DEPARTURE"
-      ? process.env.META_WHATSAPP_DEPARTURE_TEMPLATE
-      : process.env.META_WHATSAPP_TEMPLATE;
+    process.env.META_WHATSAPP_DEPARTURE_TEMPLATE ||
+    process.env.META_WHATSAPP_TEMPLATE;
   const metaReady =
     process.env.WHATSAPP_PROVIDER === "meta" &&
     !!token &&
@@ -102,6 +124,7 @@ export async function dispatchNotification(
 type DispatchableNotification = {
   id: string;
   to: string;
+  kind: string;
   parameters: string;
   container: {
     code: string;
@@ -140,17 +163,20 @@ async function dispatchEmail(
   try {
     const messageId = await sendOpsEmail(
       config,
-      departureEmail({
-        code: n.container.code,
-        origin: n.container.origin,
-        destination: n.container.destination,
-        departedAt: n.container.departedAt,
-        truckPlate: n.container.truckPlate,
-        trailerPlate: n.container.trailerPlate,
-        client: { name: n.container.client.name },
-        driver: n.container.driver ? { name: n.container.driver.name } : null,
-        parameters: n.parameters,
-      }),
+      departureEmail(
+        {
+          code: n.container.code,
+          origin: n.container.origin,
+          destination: n.container.destination,
+          departedAt: n.container.departedAt,
+          truckPlate: n.container.truckPlate,
+          trailerPlate: n.container.trailerPlate,
+          client: { name: n.container.client.name },
+          driver: n.container.driver ? { name: n.container.driver.name } : null,
+          parameters: n.parameters,
+        },
+        n.kind,
+      ),
       transport,
     );
     return await prisma.notification.update({

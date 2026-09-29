@@ -8,6 +8,9 @@ const schema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
   radiusM: z.number().int().min(50).max(2000),
+  kind: z.string().trim().toUpperCase().max(30).default("CHECKPOINT"),
+  notifyOnEnter: z.boolean().default(true),
+  notifyOnExit: z.boolean().default(false),
 });
 export async function GET() {
   return NextResponse.json(
