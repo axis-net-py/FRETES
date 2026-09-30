@@ -20,6 +20,7 @@ type CheckpointContainer = {
   driver: { name: string } | null;
   truckPlate: string | null;
   trailerPlate: string | null;
+  seal: string | null;
 };
 
 type CheckpointOutcome = {
@@ -108,6 +109,12 @@ async function notifyCheckpoint(
       createdAt: at,
     },
   });
+  const cargoDesc = c.code
+    ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
+    : c.truckPlate || c.trailerPlate
+      ? `carga solta: ${[c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")}`
+      : "carga";
+  
   const etaText = estimatedArrivalAt
     ? estimatedArrivalAt.toLocaleString("pt-BR", {
         timeZone: "America/Sao_Paulo",
@@ -115,11 +122,16 @@ async function notifyCheckpoint(
         timeStyle: "short",
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
+
+  // Build message parts for client-focused notification
+  const cargoInfo = c.code ? `container ${c.code}` : "a carga";
+  const destination = c.destination || "destino a confirmar";
+  
   const parameters = [
     c.client.name,
     c.code,
-    msg.eventText,
-    c.destination || "Destino a confirmar",
+    `${msg.eventText}. ${cargoDesc}`,
+    `${c.client.name} - ${c.destination || "destino a confirmar"}`,
     etaText,
     link,
   ];
@@ -129,7 +141,7 @@ async function notifyCheckpoint(
       to: c.client.whatsapp,
       kind,
       parameters: JSON.stringify(parameters),
-      body: `Olá ${parameters[0]}, ${parameters[2]}. Destino: ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
+      body: `Olá ${parameters[0]}, ${parameters[2]}. ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
       provider: process.env.WHATSAPP_PROVIDER || "disabled",
       status:
         c.client.consent && !!c.client.whatsapp ? "PENDING" : "NO_CONSENT",

@@ -52,9 +52,24 @@ export type EventMessage = {
   headline: string;
 };
 
-export function eventMessage(kind: string, crew: string): EventMessage {
+export function eventMessage(kind: string, crew: string, container?: {
+  code?: string;
+  seal?: string | null;
+  truckPlate?: string | null;
+  trailerPlate?: string | null;
+}): EventMessage {
   const withCrew = (base: string) =>
     crew ? `${base} com ${crew}` : base;
+  
+  // Build cargo description
+  const cargoDesc = (kind: string) => {
+    // This would need container info passed in
+    return "";
+  };
+  
+  const cargoText = (hasContainer: boolean) => 
+    hasContainer ? "container" : "carga";
+
   switch (kind) {
     case "DEPARTURE":
       return {
@@ -64,37 +79,37 @@ export function eventMessage(kind: string, crew: string): EventMessage {
       };
     case "MULTILOG_ARRIVAL":
       return {
-        eventText: withCrew("chegou à Multilog"),
+        eventText: "chegou à Multilog",
         subject: "Chegada à Multilog",
         headline: "Chegada à Multilog confirmada pelo rastreamento.",
       };
     case "CUSTOMS_ENTRY":
       return {
-        eventText: withCrew("entrou na aduana paraguaia"),
+        eventText: "entrou na aduana paraguaia",
         subject: "Entrada na aduana",
         headline: "Entrada na aduana paraguaia confirmada pelo rastreamento.",
       };
     case "CUSTOMS_EXIT":
       return {
-        eventText: `${withCrew("foi liberado da aduana paraguaia")} e seguiu viagem`,
+        eventText: "foi liberado da aduana paraguaia e seguiu viagem",
         subject: "Saída da aduana",
         headline: "Saída da aduana paraguaia confirmada pelo rastreamento.",
       };
     case "DESTINATION_ARRIVAL":
       return {
-        eventText: withCrew("chegou à cidade de destino"),
+        eventText: "chegou à cidade de destino",
         subject: "Chegada ao destino",
         headline: "Chegada ao destino confirmada pelo rastreamento.",
       };
     case "DESTINATION_DEPARTURE":
       return {
-        eventText: withCrew("saiu da cidade de destino"),
+        eventText: "saiu da cidade de destino",
         subject: "Saída do destino",
         headline: "Saída do destino confirmada - frete concluído.",
       };
     default:
       return {
-        eventText: withCrew("registrou movimentação"),
+        eventText: "registrou movimentação",
         subject: "Atualização do frete",
         headline: "Movimentação confirmada pelo rastreamento.",
       };
