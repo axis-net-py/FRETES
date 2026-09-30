@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { detectDocumentType } from "@/lib/document-fields";
+import { detectDocumentType, emptyFields } from "@/lib/document-fields";
 import {
   extractDocument,
   DocumentExtractionError,
@@ -18,40 +18,16 @@ import { apiError } from "@/lib/api";
 
 async function extractPdfText(content: Buffer): Promise<string> {
   try {
-    const pdfModule = (await import("pdf-parse")) as unknown as {
-      PDFParse?: new (opts: { data: Uint8Array }) => {
-        getText: () => Promise<{ text?: string }>;
-      };
-      default?:
-        | ((data: Buffer) => Promise<{ text: string }>)
-        | {
-            PDFParse?: new (opts: { data: Uint8Array }) => {
-              getText: () => Promise<{ text?: string }>;
-            };
-          };
-    };
-    let text = "";
-    const PDFClass =
-      pdfModule.PDFParse ||
-      (typeof pdfModule.default === "object" && pdfModule.default?.PDFParse);
-    if (typeof PDFClass === "function") {
-      const parser = new PDFClass({ data: new Uint8Array(content) });
+    const { PDFParse } = await import("pdf-parse");
+    if (typeof PDFParse === "function") {
+      const parser = new PDFParse({ data: new Uint8Array(content) });
       const res = await parser.getText();
-      text = res.text || "";
-    } else if (typeof pdfModule === "function") {
-      text =
-        (
-          await (pdfModule as (data: Buffer) => Promise<{ text: string }>)(
-            content,
-          )
-        ).text || "";
-    } else if (typeof pdfModule.default === "function") {
-      text = (await pdfModule.default(content)).text || "";
+      return (res.text || "").trim();
     }
-    return text.trim();
-  } catch {
-    return "";
+  } catch (err) {
+    console.error("[documents] extractPdfText error:", err);
   }
+  return "";
 }
 
 async function repairFromPdfText(
@@ -142,30 +118,40 @@ export async function POST(req: Request) {
     try {
       extracted = await extractDocument(content, mimeType);
     } catch (error) {
+      console.warn("[documents] AI extraction failed, falling back to local extraction:", error);
+      let text = "";
       if (mimeType === "application/pdf") {
-        const text = await extractPdfText(content);
-        if (text) {
-          const fallbackTrips = fallbackExtractFromPdfText(text);
-          if (
-            fallbackTrips.length &&
-            (fallbackTrips[0].fields.code ||
-              fallbackTrips[0].fields.micDta ||
-              fallbackTrips[0].fields.truckPlate)
-          ) {
-            extracted = {
-              promptVersion: documentPromptVersion,
-              trips: fallbackTrips,
-              warning:
-                "Leitura realizada diretamente do texto do documento (IA temporariamente indisponível). Confira os campos antes de confirmar.",
-            };
-          } else {
-            throw error;
-          }
-        } else {
-          throw error;
-        }
+        text = await extractPdfText(content);
+      }
+      if (text) {
+        const fallbackTrips = fallbackExtractFromPdfText(text);
+        extracted = {
+          promptVersion: documentPromptVersion,
+          trips: fallbackTrips.length
+            ? fallbackTrips
+            : [
+                {
+                  fields: emptyFields,
+                  warning:
+                    "Cota do Gemini indisponível no Google AI Studio. Preencha os campos abaixo para salvar o frete.",
+                },
+              ],
+          warning:
+            "Leitura direta do texto do documento realizada com sucesso (cota do Gemini atingida). Confira os campos antes de confirmar.",
+        };
       } else {
-        throw error;
+        extracted = {
+          promptVersion: documentPromptVersion,
+          trips: [
+            {
+              fields: emptyFields,
+              warning:
+                "Cota da IA atingida no Google AI Studio. Os campos foram liberados para preenchimento manual.",
+            },
+          ],
+          warning:
+            "Cota da IA atingida no Google AI Studio. Preencha os campos do frete manualmente para cadastrar.",
+        };
       }
     }
     extracted = await repairFromPdfText(content, mimeType, extracted);

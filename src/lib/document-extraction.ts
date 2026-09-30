@@ -237,10 +237,14 @@ async function extractGemini(content: Buffer, mimeType: string) {
       503,
     );
 
-  const models = [configuredModel];
-  if (configuredModel !== "gemini-2.5-flash-lite") {
-    models.push("gemini-2.5-flash-lite");
-  }
+  const candidateModels = [
+    configuredModel,
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-1.5-flash-8b",
+  ];
+  const models = [...new Set(candidateModels.filter(Boolean))];
 
   let lastError: Error | null = null;
   let lastStatus = 502;
