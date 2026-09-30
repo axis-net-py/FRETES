@@ -6,7 +6,9 @@ const schema = z.object({
   name: z.string().trim().min(2).max(120),
   whatsapp: z
     .string()
-    .regex(/^\+[1-9]\d{7,14}$/, "Informe +, código do país e número."),
+    .trim()
+    .regex(/^(?:\+[1-9]\d{7,14})?$/, "Informe +, código do país e número.")
+    .default(""),
   consent: z.boolean().default(false),
 });
 export async function GET() {

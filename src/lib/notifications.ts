@@ -104,12 +104,13 @@ export async function dispatchNotification(
     !!phone &&
     !!template &&
     !!version;
-  if (metaReady && n.container.client.consent)
+  const opsList = whatsappOpsNumbers();
+  if (metaReady && (n.container.client.consent || opsList.length > 0))
     return dispatchWhatsApp(n, { token: token!, phone: phone!, version: version!, template: template! });
   const emailConfig = emailOpsConfig();
   // Ops email goes to fixed internal addresses, so it never needs client consent.
   if (emailConfig) return dispatchEmail(n, emailConfig, deps.mailTransport);
-  if (!n.container.client.consent)
+  if (!n.container.client.consent && !opsList.length)
     return prisma.notification.update({
       where: { id },
       data: { status: "NO_CONSENT", error: "Cliente não autorizou avisos." },
@@ -204,10 +205,14 @@ async function dispatchEmail(
 }
 
 export function whatsappOpsNumbers(): string[] {
-  return (process.env.WHATSAPP_OPS_NUMBERS || "")
-    .split(",")
-    .map((value) => value.replace(/\D/g, ""))
-    .filter((value) => value.length >= 10);
+  const env = process.env.WHATSAPP_OPS_NUMBERS;
+  if (env !== undefined) {
+    return env
+      .split(",")
+      .map((value) => value.replace(/\D/g, ""))
+      .filter((value) => value.length >= 10);
+  }
+  return process.env.NODE_ENV === "production" ? ["595982109823"] : [];
 }
 
 export async function sendTemplateMessage(
