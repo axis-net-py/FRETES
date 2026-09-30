@@ -5,6 +5,7 @@ import {
   journeyTarget,
   notificationKindFor,
   eventMessage,
+  formatUpdateMessage,
   type JourneyGate,
   type JourneyEvent,
 } from "../src/lib/journey.ts";
@@ -51,15 +52,29 @@ test("notification kinds and professional messages map per checkpoint", () => {
   assert.equal(notificationKindFor("CUSTOMS_ENTRY", "ENTER"), "CUSTOMS_ENTRY");
   assert.equal(notificationKindFor("CUSTOMS_EXIT", "EXIT"), "CUSTOMS_EXIT");
   assert.equal(notificationKindFor("CUSTOM", "ENTER"), "CUSTOM_ENTER");
-  const crew = "ADRIANO VENTURA · AASZ042 / ABBKO34";
-  const departure = eventMessage("DEPARTURE", crew);
-  assert.ok(departure.eventText.includes("Porto de Paranaguá"));
-  assert.ok(departure.eventText.includes(crew));
+  const departure = eventMessage("DEPARTURE");
+  assert.ok(departure.eventText.includes("acaba de sair do Porto de Paranaguá"));
   assert.equal(departure.subject, "Saída do porto");
-  const arrival = eventMessage("MULTILOG_ARRIVAL", crew);
-  assert.ok(arrival.eventText.includes("Multilog"));
+  const arrival = eventMessage("MULTILOG_ARRIVAL");
+  assert.ok(arrival.eventText.includes("acaba de chegar à Multilog"));
   assert.ok(arrival.headline.includes("Multilog"));
-  const anonymous = eventMessage("CUSTOMS_EXIT", "");
-  assert.ok(!anonymous.eventText.includes("com  e"));
+  const anonymous = eventMessage("CUSTOMS_EXIT");
   assert.ok(anonymous.eventText.includes("aduana paraguaia"));
+});
+
+test("formatUpdateMessage leads with cargo state, no client greeting", () => {
+  const text = formatUpdateMessage([
+    "container OOCU7205410 (lacre OOLLFV7339)",
+    "acaba de sair do Porto de Paranaguá e iniciou o trajeto",
+    "ADRIANO VENTURA com caminhão AASZ042 / ABBKO34",
+    "COTRIPAR com destino SANTA RITA - PY",
+    "27/09/2026 06:14",
+    "https://axis-fretes.vercel.app/acompanhar#abc",
+  ]);
+  assert.ok(!text.startsWith("Olá"));
+  assert.ok(text.includes("a carga container OOCU7205410 (lacre OOLLFV7339)"));
+  assert.ok(text.includes("Motorista ADRIANO VENTURA com caminhão"));
+  assert.ok(text.includes("em direção ao cliente COTRIPAR com destino"));
+  assert.ok(text.includes("Previsão de chegada: 27/09/2026 06:14."));
+  assert.ok(text.endsWith("Acompanhe o trajeto: https://axis-fretes.vercel.app/acompanhar#abc."));
 });

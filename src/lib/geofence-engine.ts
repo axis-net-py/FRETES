@@ -5,6 +5,7 @@ import {
   journeyTarget,
   notificationKindFor,
   eventMessage,
+  formatUpdateMessage,
 } from "./journey";
 import { prisma } from "./prisma";
 import { dispatchNotification } from "./notifications";
@@ -62,13 +63,11 @@ async function notifyCheckpoint(
 ): Promise<CheckpointOutcome> {
   const { gate, event, at, input, container: c } = args;
   const kind = notificationKindFor(gate.kind, event);
-  const crew = [
-    c.driver?.name,
-    [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / "),
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const msg = eventMessage(kind, crew);
+  const plates = [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ");
+  const crewLine = c.driver?.name
+    ? `${c.driver.name} com caminhão ${plates}`
+    : plates;
+  const msg = eventMessage(kind);
   let link = "";
   const departedAt = at;
   let estimatedArrivalAt = c.estimatedArrivalAt;
@@ -109,14 +108,6 @@ async function notifyCheckpoint(
       createdAt: at,
     },
   });
-  const cargoDesc = c.code
-    ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
-    : c.truckPlate || c.trailerPlate
-      ? `carga solta: ${[c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")}`
-      : "carga";
-
-  const destinationCity = c.destination || "destino a confirmar";
-
   const etaText = estimatedArrivalAt
     ? estimatedArrivalAt.toLocaleString("pt-BR", {
         timeZone: "America/Sao_Paulo",
@@ -125,22 +116,18 @@ async function notifyCheckpoint(
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
 
-  // Build client-focused message
-  // Format: "Olá [CLIENTE], [carga info], [cliente] - [cidade destino]. Previsão: [ETA]"
-  const messageBody = `Olá ${c.client.name}, ${cargoDesc}. ${c.client.name} - ${c.destination || "destino a confirmar"}. Previsão: ${etaText}. Acompanhe: ${link}`;
-
+  const cargo = c.code
+    ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
+    : [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ") || "carga solta";
   const parameters = [
-    c.client.name,
-    c.code || "N/A",
-    c.code
-      ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
-      : c.truckPlate || c.trailerPlate
-        ? `carga solta: ${[c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")}`
-        : "carga",
-    c.destination || "destino a confirmar",
+    cargo,
+    msg.eventText,
+    crewLine,
+    `${c.client.name} com destino ${c.destination || "destino a confirmar"}`,
     etaText,
     link,
   ];
+  const messageBody = formatUpdateMessage(parameters);
 
   const n = await tx.notification.create({
     data: {

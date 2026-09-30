@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { emailOpsConfig, sendOpsEmail, type MailTransport } from "./email";
-import { eventMessage } from "./journey";
+import { eventMessage, formatUpdateMessage } from "./journey";
 
 export function departureEmail(
   container: {
@@ -25,39 +25,40 @@ export function departureEmail(
   } catch {
     // Fall back to container fields below.
   }
-  const msg = eventMessage(
-    kind,
-    [
-      container.driver?.name,
-      [container.truckPlate, container.trailerPlate]
-        .filter(Boolean)
-        .join(" / "),
-    ]
-      .filter(Boolean)
-      .join(" · "),
-  );
-  const departedText = container.departedAt
-    ? container.departedAt.toLocaleString("pt-BR", {
-        timeZone: "America/Sao_Paulo",
-        dateStyle: "short",
-        timeStyle: "short",
-      })
-    : "a confirmar";
-  const lines = [
-    msg.headline,
-    `Cliente: ${container.client.name}`,
-    `Container: ${container.code}`,
-    `Motorista: ${container.driver?.name || "a confirmar"}`,
-    `Cavalo: ${container.truckPlate || "a confirmar"} · Carreta: ${container.trailerPlate || "a confirmar"}`,
-    `Trajeto: ${container.origin || "origem a confirmar"} �  ${container.destination || "destino a confirmar"}`,
-  ];
-  if (kind === "DEPARTURE")
-    lines.push(`Saída: ${departedText} (horário de Brasília)`);
-  lines.push(`Previsão: ${etaText || "a confirmar"}`);
-  if (trackingLink) lines.push(`Acompanhamento: ${trackingLink}`);
+  const parsed = (() => {
+    try {
+      const value = JSON.parse(container.parameters) as string[];
+      if (Array.isArray(value)) return value;
+    } catch {
+      // Fall back to container fields below.
+    }
+    return [] as string[];
+  })();
+  const cargo =
+    parsed[0] ||
+    (container.code
+      ? `container ${container.code}`
+      : [container.truckPlate, container.trailerPlate]
+          .filter(Boolean)
+          .join(" / ") || "carga solta");
+  const event = parsed[1] || eventMessage(kind).eventText;
+  const plates = [container.truckPlate, container.trailerPlate]
+    .filter(Boolean)
+    .join(" / ");
+  const crewLine =
+    parsed[2] ||
+    (container.driver?.name
+      ? `${container.driver.name} com caminhão ${plates}`
+      : plates);
+  const clientDest =
+    parsed[3] ||
+    `${container.client.name} com destino ${container.destination || "destino a confirmar"}`;
+  const msg = eventMessage(kind);
+  const text = formatUpdateMessage([cargo, event, crewLine, clientDest, etaText, trackingLink]);
+  const subjectId = container.code || clientDest;
   return {
-    subject: `[FRETES] ${msg.subject} � container ${container.code}`,
-    text: lines.join("\n"),
+    subject: `[FRETES] ${msg.subject} — ${subjectId}`,
+    text,
   };
 }
 

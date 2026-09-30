@@ -52,58 +52,41 @@ export type EventMessage = {
   headline: string;
 };
 
-export function eventMessage(kind: string, crew: string, container?: {
-  code?: string;
-  seal?: string | null;
-  truckPlate?: string | null;
-  trailerPlate?: string | null;
-}): EventMessage {
-  const withCrew = (base: string) =>
-    crew ? `${base} com ${crew}` : base;
-  
-  // Build cargo description
-  const cargoDesc = (kind: string) => {
-    // This would need container info passed in
-    return "";
-  };
-  
-  const cargoText = (hasContainer: boolean) => 
-    hasContainer ? "container" : "carga";
-
+export function eventMessage(kind: string): EventMessage {
   switch (kind) {
     case "DEPARTURE":
       return {
-        eventText: `${withCrew("saiu do Porto de Paranaguá")} e iniciou o trajeto`,
+        eventText: "acaba de sair do Porto de Paranaguá e iniciou o trajeto",
         subject: "Saída do porto",
         headline: "Saída do porto confirmada pelo rastreamento.",
       };
     case "MULTILOG_ARRIVAL":
       return {
-        eventText: "chegou à Multilog",
+        eventText: "acaba de chegar à Multilog",
         subject: "Chegada à Multilog",
         headline: "Chegada à Multilog confirmada pelo rastreamento.",
       };
     case "CUSTOMS_ENTRY":
       return {
-        eventText: "entrou na aduana paraguaia",
+        eventText: "acaba de entrar na aduana paraguaia",
         subject: "Entrada na aduana",
         headline: "Entrada na aduana paraguaia confirmada pelo rastreamento.",
       };
     case "CUSTOMS_EXIT":
       return {
-        eventText: "foi liberado da aduana paraguaia e seguiu viagem",
+        eventText: "acaba de ser liberado da aduana paraguaia e seguiu viagem",
         subject: "Saída da aduana",
         headline: "Saída da aduana paraguaia confirmada pelo rastreamento.",
       };
     case "DESTINATION_ARRIVAL":
       return {
-        eventText: "chegou à cidade de destino",
+        eventText: "acaba de chegar à cidade de destino",
         subject: "Chegada ao destino",
         headline: "Chegada ao destino confirmada pelo rastreamento.",
       };
     case "DESTINATION_DEPARTURE":
       return {
-        eventText: "saiu da cidade de destino",
+        eventText: "acaba de sair da cidade de destino",
         subject: "Saída do destino",
         headline: "Saída do destino confirmada - frete concluído.",
       };
@@ -114,4 +97,19 @@ export function eventMessage(kind: string, crew: string, container?: {
         headline: "Movimentação confirmada pelo rastreamento.",
       };
   }
+}
+
+// A carga [tal] acaba de [atualização], do motorista [tal] com caminhão
+// [tal] em direção do cliente [tal] com destino [tal], com previsão [tal].
+// parts: [cargo, event, crew, clientDest, eta, link]
+export function formatUpdateMessage(parts: string[]): string {
+  const [cargo, event, crew, clientDest, eta, link] = parts.map(
+    (part) => part || "",
+  );
+  let text =
+    `Atualização de frete da MANU Logistica: a carga ${cargo} ${event}.` +
+    ` Motorista ${crew} em direção ao cliente ${clientDest}.` +
+    ` Previsão de chegada: ${eta || "a confirmar"}.`;
+  if (link) text += ` Acompanhe o trajeto: ${link}.`;
+  return text;
 }

@@ -72,20 +72,19 @@ test("departure email stays within ops context and never carries secrets", () =>
     client: { name: "COTRIPAR S.A." },
     driver: { name: "EDERSON FACHINI" },
     parameters: JSON.stringify([
-      "COTRIPAR S.A.",
-      "MRSU2904847",
-      "Saiu da área do portão e iniciou o trajeto",
-      "Santa Rita - PY",
+      "container MRSU2904847",
+      "acaba de sair do Porto de Paranaguá e iniciou o trajeto",
+      "EDERSON FACHINI com caminhão ABCD519 / ABBK035",
+      "COTRIPAR S.A. com destino Santa Rita - PY",
       "25/09/2026 12:00 (horário de Brasília; estimativa)",
       "https://axis-fretes.vercel.app/acompanhar#secret-token",
     ]),
   });
   assert.ok(mail.subject.includes("MRSU2904847"));
-  assert.ok(mail.text.includes("COTRIPAR S.A."));
-  assert.ok(mail.text.includes("EDERSON FACHINI"));
-  assert.ok(mail.text.includes("ABCD519"));
-  assert.ok(mail.text.includes("ABBK035"));
-  assert.ok(mail.text.includes("Santa Rita - PY"));
+  assert.ok(!mail.text.startsWith("Olá"));
+  assert.ok(mail.text.includes("a carga container MRSU2904847"));
+  assert.ok(mail.text.includes("EDERSON FACHINI com caminhão ABCD519 / ABBK035"));
+  assert.ok(mail.text.includes("COTRIPAR S.A. com destino Santa Rita - PY"));
   assert.ok(!mail.text.includes("secret-token") || mail.text.includes("acompanhar"));
 });
 
