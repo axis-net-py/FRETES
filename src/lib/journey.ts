@@ -107,7 +107,7 @@ export function formatUpdateMessage(parts: string[]): string {
     (part) => part || "",
   );
   let text =
-    `Atualização de frete da MANU Logistica: a carga ${cargo} ${event}.` +
+    `Atualização de frete da Manu Logistica EAS: a carga ${cargo} ${event}.` +
     ` Motorista ${crew} em direção ao cliente ${clientDest}.` +
     ` Previsão de chegada: ${eta || "a confirmar"}.`;
   if (link) text += ` Acompanhe o trajeto: ${link}.`;
