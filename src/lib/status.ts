@@ -1,13 +1,12 @@
 export const CONTAINER_STATUSES = [
   "EM_TRANSITO",
-  "CHEGADA_PORTAO",
+  "TPC",
   "LIBERADO",
   "CARREGADO",
   "A_CAMINHO_DESTINO",
   "ENTREGUE",
   "CHEGADA_MULTILOG",
-  "CHEGADA_ADUANA",
-  "SAIDA_ADUANA",
+  "ADUANA",
   "CHEGADA_APPA",
 ] as const;
 
@@ -15,14 +14,13 @@ export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
 
 export const STATUS_LABELS: Record<ContainerStatus, string> = {
   EM_TRANSITO: "A caminho do porto",
-  CHEGADA_PORTAO: "No portão · aguardando liberação",
-  A_CAMINHO_DESTINO: "A caminho do cliente",
+  TPC: "TPC",
   LIBERADO: "Liberado no porto",
   CARREGADO: "Carregado",
+  A_CAMINHO_DESTINO: "A caminho do cliente",
   ENTREGUE: "Entregue",
   CHEGADA_MULTILOG: "MULTILOG",
-  CHEGADA_ADUANA: "ADUANA PARAGUAIA",
-  SAIDA_ADUANA: "ADUANA PARAGUAIA",
+  ADUANA: "ADUANA PARAGUAIA",
   CHEGADA_APPA: "APPA",
 };
 
