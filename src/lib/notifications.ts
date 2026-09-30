@@ -209,7 +209,7 @@ export function whatsappOpsNumbers(): string[] {
     .filter((value) => value.length >= 10);
 }
 
-async function sendTemplateMessage(
+export async function sendTemplateMessage(
   creds: { token: string; phone: string; version: string; template: string },
   to: string,
   parameters: string,
@@ -249,6 +249,98 @@ async function sendTemplateMessage(
       `Meta recusou para ${to} (HTTP ${response.status}; c�digo ${payload.error?.code || "indispon�vel"}).`,
     );
   return payload.messages[0].id as string;
+}
+
+export async function sendWhatsAppTestMessage(options: {
+  to?: string;
+  template?: string;
+}) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const phone = process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+  const version = process.env.META_GRAPH_VERSION || "v21.0";
+  const template =
+    options.template ||
+    process.env.META_WHATSAPP_DEPARTURE_TEMPLATE ||
+    process.env.META_WHATSAPP_TEMPLATE;
+
+  if (!token) {
+    throw new Error("META_WHATSAPP_TOKEN não configurado no ambiente.");
+  }
+  if (!phone) {
+    throw new Error("META_WHATSAPP_PHONE_NUMBER_ID não configurado no ambiente.");
+  }
+
+  const rawTo = options.to || whatsappOpsNumbers()[0];
+  if (!rawTo) {
+    throw new Error(
+      "Nenhum destinatário informado. Informe um número de telefone com DDI (ex.: +5541999999999 ou +595981234567).",
+    );
+  }
+
+  const cleanTo = rawTo.replace(/\D/g, "");
+  if (!cleanTo || cleanTo.length < 10) {
+    throw new Error(
+      "Número de telefone inválido. Informe o código do país e DDD (ex.: +5541999999999 ou +595981234567).",
+    );
+  }
+
+  if (template) {
+    const testParams = [
+      "Operador (Teste)",
+      "TEST001",
+      "saiu do porto em direção ao destino",
+      "Assunção - PY",
+      "Hoje às 18:00 (estimativa)",
+      "https://fretes.axis-net.com",
+    ];
+    const messageId = await sendTemplateMessage(
+      { token, phone, version, template },
+      cleanTo,
+      JSON.stringify(testParams),
+    );
+    return {
+      messageId,
+      to: cleanTo,
+      template,
+      mode: "template" as const,
+    };
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/${version}/${phone}/messages`,
+    {
+      method: "POST",
+      signal: AbortSignal.timeout(12000),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: cleanTo,
+        type: "text",
+        text: {
+          preview_url: false,
+          body: "[FRETES] Teste de integração WhatsApp Meta Cloud API realizado com sucesso!",
+        },
+      }),
+    },
+  );
+  const payload = await response.json();
+  if (!response.ok || !payload.messages?.[0]?.id) {
+    const code = payload.error?.code || response.status;
+    const msg = payload.error?.message || "Erro desconhecido da Meta.";
+    throw new Error(
+      `Meta recusou para ${cleanTo} (HTTP ${response.status}; código ${code}: ${msg}).`,
+    );
+  }
+
+  return {
+    messageId: payload.messages[0].id as string,
+    to: cleanTo,
+    mode: "text" as const,
+  };
 }
 
 async function dispatchWhatsApp(

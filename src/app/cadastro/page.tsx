@@ -23,6 +23,40 @@ function Registration() {
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [testPhone, setTestPhone] = useState("");
+  const [testingWa, setTestingWa] = useState(false);
+  const [waFeedback, setWaFeedback] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+
+  async function handleSendWaTest(e: FormEvent) {
+    e.preventDefault();
+    setTestingWa(true);
+    setWaFeedback(null);
+    try {
+      const r = await fetch("/api/notifications/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "whatsapp", to: testPhone }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        throw new Error(data.error || "Falha no envio de teste do WhatsApp.");
+      }
+      setWaFeedback({
+        ok: true,
+        message: `Disparo realizado com sucesso! ID: ${data.messageId || "OK"}. Destinatário: ${data.to}.${data.warning ? " " + data.warning : ""}`,
+      });
+    } catch (err) {
+      setWaFeedback({
+        ok: false,
+        message: err instanceof Error ? err.message : "Erro ao testar envio.",
+      });
+    } finally {
+      setTestingWa(false);
+    }
+  }
   async function reload() {
     try {
       const entries = await Promise.all(
@@ -169,6 +203,48 @@ function Registration() {
           >
             Abrir configuração na Vercel <ArrowRight size={16} />
           </a>
+          <div className="mt-8 pt-6 border-t">
+            <h2 className="text-lg font-semibold mb-2">Disparo de Teste do WhatsApp</h2>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+              Envie uma mensagem de teste para verificar se o token da Meta, o número remetente e o template estão configurados e aprovados.
+            </p>
+            <form onSubmit={handleSendWaTest} className="space-y-4 max-w-xl">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Telefone para teste (com DDI e DDD, ex.: +5541999999999 ou +595981234567)
+                </label>
+                <input
+                  type="tel"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="+5541999999999 ou +595981234567"
+                  className="w-full text-sm rounded border border-slate-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-xs text-slate-400 mt-1 block">
+                  Se em branco, usará o primeiro número configurado em WHATSAPP_OPS_NUMBERS.
+                </span>
+              </div>
+              <button
+                type="submit"
+                disabled={testingWa}
+                className="btn primary inline-flex items-center gap-2"
+              >
+                {testingWa ? "Enviando teste..." : "Enviar teste WhatsApp"}
+              </button>
+            </form>
+            {waFeedback && (
+              <div
+                className={`mt-4 p-3 rounded-lg text-sm ${
+                  waFeedback.ok
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-rose-50 text-rose-800 border border-rose-200"
+                }`}
+              >
+                <b>{waFeedback.ok ? "✓ Sucesso: " : "✕ Erro: "}</b>
+                {waFeedback.message}
+              </div>
+            )}
+          </div>
           <div className="mt-8 pt-5 border-t">
             <h2>Rastreamento dos cavalos · GlobalSAT</h2>
             <p className="text-sm text-slate-500 leading-relaxed">

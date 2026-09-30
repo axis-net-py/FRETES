@@ -1,10 +1,49 @@
 import { NextResponse } from "next/server";
 import { adminRequestError } from "@/lib/admin-request";
 import { emailOpsConfig, sendOpsEmail } from "@/lib/email";
+import { sendWhatsAppTestMessage } from "@/lib/notifications";
 
 export async function POST(req: Request) {
   const unauthorized = await adminRequestError(req);
   if (unauthorized) return unauthorized;
+
+  let body: { channel?: string; to?: string; template?: string } = {};
+  try {
+    if (req.headers.get("content-type")?.includes("application/json")) {
+      body = await req.json();
+    }
+  } catch {
+    body = {};
+  }
+
+  if (body.channel === "whatsapp") {
+    try {
+      const result = await sendWhatsAppTestMessage({
+        to: body.to,
+        template: body.template,
+      });
+      return NextResponse.json({
+        ok: true,
+        channel: "whatsapp",
+        ...result,
+        warning:
+          process.env.WHATSAPP_PROVIDER !== "meta"
+            ? `Aviso: WHATSAPP_PROVIDER está configurado como '${process.env.WHATSAPP_PROVIDER || "disabled"}'. Em viagens reais, configure WHATSAPP_PROVIDER=meta na Vercel.`
+            : undefined,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Falha no envio de teste do WhatsApp.",
+        },
+        { status: 502 },
+      );
+    }
+  }
+
   const config = emailOpsConfig();
   if (!config)
     return NextResponse.json(

@@ -113,13 +113,13 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "CARGA SOLTA",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 7, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
-  assert.equal(shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
-  assert.equal(shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 9, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
+  assert.equal(shouldReExtract({ promptVersion: 9, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
   assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, 0), true);
   assert.equal(shouldReExtract(null, 0), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
+    shouldReExtract({ promptVersion: 9, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
     false,
   );
 });

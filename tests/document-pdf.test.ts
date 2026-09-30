@@ -46,3 +46,18 @@ test("repair never fills on count mismatch and keeps filled trips", () => {
     trip({ driverName: "A" }),
   ]);
 });
+
+test("repair fills trailerPlate when truckPlate is known and plates exist in text", () => {
+  const text = [
+    "11 Placa del camión: AARG801",
+    "15 Semi Remolque: AAOA125",
+    "TIPO DE BULTOS: SOLTA",
+  ].join("\n");
+  const repaired = repairTripsFromText(
+    [trip({ truckPlate: "AARG801", micDta: "BR366200452" })],
+    text,
+  );
+  assert.equal(repaired[0].fields.trailerPlate, "AAOA125");
+  assert.equal(repaired[0].fields.truckPlate, "AARG801");
+  assert.equal(repaired[0].fields.code, "CS-BR366200452");
+});

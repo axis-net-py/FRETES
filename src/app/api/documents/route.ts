@@ -7,21 +7,16 @@ import {
   DocumentExtractionError,
   shouldReExtract,
   type DocumentExtraction,
+  documentPromptVersion,
 } from "@/lib/document-extraction";
-import { repairTripsFromText } from "@/lib/document-pdf";
+import {
+  repairTripsFromText,
+  fallbackExtractFromPdfText,
+} from "@/lib/document-pdf";
 import { documentProvider } from "@/lib/document-provider";
 import { apiError } from "@/lib/api";
 
-async function repairFromPdfText(
-  content: Buffer,
-  mimeType: string,
-  extracted: DocumentExtraction,
-): Promise<DocumentExtraction> {
-  if (
-    mimeType !== "application/pdf" ||
-    !extracted.trips.some((trip) => !trip.fields.code || !trip.fields.micDta)
-  )
-    return extracted;
+async function extractPdfText(content: Buffer): Promise<string> {
   try {
     const pdfModule = (await import("pdf-parse")) as unknown as {
       PDFParse?: new (opts: { data: Uint8Array }) => {
@@ -53,11 +48,21 @@ async function repairFromPdfText(
     } else if (typeof pdfModule.default === "function") {
       text = (await pdfModule.default(content)).text || "";
     }
-    if (!text.trim()) return extracted;
-    return { ...extracted, trips: repairTripsFromText(extracted.trips, text) };
+    return text.trim();
   } catch {
-    return extracted;
+    return "";
   }
+}
+
+async function repairFromPdfText(
+  content: Buffer,
+  mimeType: string,
+  extracted: DocumentExtraction,
+): Promise<DocumentExtraction> {
+  if (mimeType !== "application/pdf") return extracted;
+  const text = await extractPdfText(content);
+  if (!text) return extracted;
+  return { ...extracted, trips: repairTripsFromText(extracted.trips, text) };
 }
 export const maxDuration = 60;
 const documentLinksSelect = {
@@ -133,7 +138,37 @@ export async function POST(req: Request) {
         { error: "Limite de 30 leituras por hora atingido. Tente mais tarde." },
         { status: 429 },
       );
-    const extracted = await repairFromPdfText(content, mimeType, await extractDocument(content, mimeType));
+    let extracted: DocumentExtraction;
+    try {
+      extracted = await extractDocument(content, mimeType);
+    } catch (error) {
+      if (mimeType === "application/pdf") {
+        const text = await extractPdfText(content);
+        if (text) {
+          const fallbackTrips = fallbackExtractFromPdfText(text);
+          if (
+            fallbackTrips.length &&
+            (fallbackTrips[0].fields.code ||
+              fallbackTrips[0].fields.micDta ||
+              fallbackTrips[0].fields.truckPlate)
+          ) {
+            extracted = {
+              promptVersion: documentPromptVersion,
+              trips: fallbackTrips,
+              warning:
+                "Leitura realizada diretamente do texto do documento (IA temporariamente indisponível). Confira os campos antes de confirmar.",
+            };
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        throw error;
+      }
+    }
+    extracted = await repairFromPdfText(content, mimeType, extracted);
     if (existing) {
       await prisma.tripDocument.update({
         where: { id: existing.id },
