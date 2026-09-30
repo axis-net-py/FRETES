@@ -1,7 +1,8 @@
 import type { TripExtraction } from "./document-extraction";
 
 const CONTAINER_PATTERN = /\b([A-Z]{4}[0-9]{7})\b/g;
-const PASSAGE_PATTERN = /\b(\d{2,3}\/\d{6,7}-\d{1,2})\b/g;
+const PASSAGE_PATTERN =
+  /\b(\d{2}[A-Z]{2}\d{6}[A-Z]|\d{2,3}\/\d{6,7}-\d{1,2})\b/g;
 
 function uniqueMatches(text: string, pattern: RegExp, used: Set<string>) {
   const found: string[] = [];

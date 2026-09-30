@@ -1,7 +1,7 @@
 import { z } from "zod";
 export const fieldLabels = {
   clientName: "Cliente / destinatário",
-  code: "Número do container",
+  code: "Container / Carga solta",
   crt: "Número do CRT",
   micDta: "Número do MIC/DTA",
   driverName: "Motorista",
@@ -24,7 +24,10 @@ export const documentFieldsSchema = z
       .string()
       .trim()
       .toUpperCase()
-      .regex(/^[A-Z]{4}\d{7}$/, "Container: use 4 letras e 7 números."),
+      .regex(
+        /^(?:[A-Z]{4}\d{7}|[A-Z0-9\-\.\/]{3,30})$/,
+        "Container ou carga: use 4 letras e 7 números (ex: MRSU2904847) ou identificador de carga solta (ex: CS-BR366200452).",
+      ),
     crt: z.string().trim().max(80),
     micDta: z.string().trim().max(80),
     driverName: z.string().trim().min(2).max(120),
