@@ -23,11 +23,36 @@ async function repairFromPdfText(
   )
     return extracted;
   try {
-    const pdfModule = (await import("pdf-parse")) as unknown as
-      | { default: (data: Buffer) => Promise<{ text: string }> }
-      | ((data: Buffer) => Promise<{ text: string }>);
-    const parse = typeof pdfModule === "function" ? pdfModule : pdfModule.default;
-    const text = (await parse(content)).text || "";
+    const pdfModule = (await import("pdf-parse")) as unknown as {
+      PDFParse?: new (opts: { data: Uint8Array }) => {
+        getText: () => Promise<{ text?: string }>;
+      };
+      default?:
+        | ((data: Buffer) => Promise<{ text: string }>)
+        | {
+            PDFParse?: new (opts: { data: Uint8Array }) => {
+              getText: () => Promise<{ text?: string }>;
+            };
+          };
+    };
+    let text = "";
+    const PDFClass =
+      pdfModule.PDFParse ||
+      (typeof pdfModule.default === "object" && pdfModule.default?.PDFParse);
+    if (typeof PDFClass === "function") {
+      const parser = new PDFClass({ data: new Uint8Array(content) });
+      const res = await parser.getText();
+      text = res.text || "";
+    } else if (typeof pdfModule === "function") {
+      text =
+        (
+          await (pdfModule as (data: Buffer) => Promise<{ text: string }>)(
+            content,
+          )
+        ).text || "";
+    } else if (typeof pdfModule.default === "function") {
+      text = (await pdfModule.default(content)).text || "";
+    }
     if (!text.trim()) return extracted;
     return { ...extracted, trips: repairTripsFromText(extracted.trips, text) };
   } catch {
