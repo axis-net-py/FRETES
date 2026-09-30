@@ -371,16 +371,8 @@ async function extractGemini(content: Buffer, mimeType: string) {
     )
   );
 }
-export async function extractDocument(content: Buffer, mimeType: string) {
-  const config = documentProvider();
-  if (config.provider === "gemini") return extractGemini(content, mimeType);
-  if (!config.ready)
-    return {
-      promptVersion: documentPromptVersion,
-      trips: [{ fields: emptyFields, warning: "" }],
-      warning:
-        "Leitura automática ainda não ativada. O arquivo foi guardado; preencha os dados abaixo ou volte após a configuração do serviço.",
-    };
+
+async function extractOpenAI(content: Buffer, mimeType: string) {
   const data = `data:${mimeType};base64,${content.toString("base64")}`;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -449,4 +441,26 @@ export async function extractDocument(content: Buffer, mimeType: string) {
     )
     .find((c: { type: string }) => c.type === "output_text")?.text;
   return parseFields(text || "{}");
+}
+
+export async function extractDocument(content: Buffer, mimeType: string) {
+  const config = documentProvider();
+  if (config.provider === "gemini") {
+    try {
+      return await extractGemini(content, mimeType);
+    } catch (error) {
+      if (process.env.OPENAI_API_KEY) {
+        console.warn("[documents] Gemini failed, attempting OpenAI fallback:", error);
+        return await extractOpenAI(content, mimeType);
+      }
+      throw error;
+    }
+  }
+  if (config.provider === "openai") return extractOpenAI(content, mimeType);
+  return {
+    promptVersion: documentPromptVersion,
+    trips: [{ fields: emptyFields, warning: "" }],
+    warning:
+      "Leitura automática ainda não ativada. O arquivo foi guardado; preencha os dados abaixo ou volte após a configuração do serviço.",
+  };
 }

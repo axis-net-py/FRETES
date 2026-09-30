@@ -18,6 +18,15 @@ import { apiError } from "@/lib/api";
 
 async function extractPdfText(content: Buffer): Promise<string> {
   try {
+    const { extractText } = await import("unpdf");
+    const res = await extractText(new Uint8Array(content), { mergePages: true });
+    if (res?.text && res.text.trim()) {
+      return res.text.trim();
+    }
+  } catch (err) {
+    console.error("[documents] unpdf extractText error:", err);
+  }
+  try {
     const { PDFParse } = await import("pdf-parse");
     if (typeof PDFParse === "function") {
       const parser = new PDFParse({ data: new Uint8Array(content) });
@@ -25,7 +34,7 @@ async function extractPdfText(content: Buffer): Promise<string> {
       return (res.text || "").trim();
     }
   } catch (err) {
-    console.error("[documents] extractPdfText error:", err);
+    console.error("[documents] pdf-parse fallback error:", err);
   }
   return "";
 }

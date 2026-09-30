@@ -180,36 +180,57 @@ export function fallbackExtractFromPdfText(pdfText: string): TripExtraction[] {
 
   // Driver name
   let driverName = "";
-  const ciMatch = pdfText.match(/([A-Z\s]{4,35})\s+(?:CI:|CPF)/i);
+  const ciMatch = pdfText.match(/([A-Z\s]{3,40})\s+(?:CI:|CPF)/i);
   if (ciMatch) {
-    driverName = ciMatch[1].replace(/[\n\r]/g, " ").replace(/\s+/g, " ").trim();
+    const lines = ciMatch[1].split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    driverName = (lines[lines.length - 1] || "").replace(/\s+/g, " ");
   }
 
   // Client name
   let clientName = "";
-  const clientMatch = pdfText.match(/(?:34\s*Destinatario|35\s*Consignat[aá]rio)[\s\S]*?\n([A-Z\s]{4,50}\b)/i);
-  if (clientMatch && !clientMatch[1].includes("AVDA") && !clientMatch[1].includes("Origem")) {
-    clientName = clientMatch[1].trim();
-  } else {
-    const patMatch = pdfText.match(/\b([A-Z\s]{4,40})\nAVDA\./);
-    if (patMatch) clientName = patMatch[1].trim();
+  const avdaIdx = pdfText.search(/\bAVDA\./i);
+  if (avdaIdx !== -1) {
+    const beforeLines = pdfText.slice(0, avdaIdx).trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const candidate = beforeLines[beforeLines.length - 1] || "";
+    if (candidate.length >= 3 && !candidate.includes("Origem") && !candidate.includes("PARANAGUA")) {
+      clientName = candidate;
+    }
+  }
+  if (!clientName) {
+    const destMatch = pdfText.match(/(?:34\s*Destinatario|35\s*Consignat[aá]rio)[\s\S]*?\n\s*([A-Z\s]{4,50}\b)/i);
+    if (destMatch) {
+      const raw = destMatch[1].trim();
+      if (!raw.includes("AVDA") && !raw.includes("Origem")) clientName = raw;
+    }
   }
 
   // Freight
   let freightValue = "";
-  let freightCurrency = "";
-  const fleteMatch = pdfText.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s+USD/i) || pdfText.match(/28\s*Flete[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
-  if (fleteMatch) {
-    freightValue = fleteMatch[1].replace(/\./g, "").replace(",", ".");
-    freightCurrency = "USD";
+  const freightCurrency = "USD";
+  const tripletMatch = pdfText.match(
+    /\b(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\s+(\d{1,3}(?:\.\d{3})*,\d{2})\b/,
+  );
+  if (tripletMatch) {
+    freightValue = tripletMatch[2].replace(/\./g, "").replace(",", ".");
+  } else {
+    const fleteMatch =
+      pdfText.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s+USD/i) ||
+      pdfText.match(/28\s*Flete[\s\S]*?(\d{1,3}(?:\.\d{3})*,\d{2})/i);
+    if (fleteMatch) {
+      freightValue = fleteMatch[1].replace(/\./g, "").replace(",", ".");
+    }
   }
 
   const origin = text.includes("PARANAGUA") ? "Porto de Paranaguá" : "";
   let destination = "";
   if (text.includes("COLONIA TIROL")) {
     destination = "COLONIA TIROL - ITAPUA - PARAGUAY";
+  } else if (text.includes("KATUETE")) {
+    destination = "KATUETE - CANINDEYU - PARAGUAY";
   } else if (text.includes("ASUNCION")) {
     destination = "ASUNCION";
+  } else if (text.includes("CIUDAD DEL ESTE")) {
+    destination = "CIUDAD DEL ESTE";
   }
 
   const fields: DocumentFields = {

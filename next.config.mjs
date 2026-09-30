@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["pdf-parse"],
+  serverExternalPackages: ["pdf-parse", "unpdf"],
   outputFileTracingRoot: process.cwd(),
   async headers() {
     return [
