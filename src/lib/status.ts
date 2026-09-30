@@ -16,14 +16,14 @@ export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
 export const STATUS_LABELS: Record<ContainerStatus, string> = {
   EM_TRANSITO: "A caminho do porto",
   CHEGADA_PORTAO: "No portão · aguardando liberação",
-  A_CAMINHO_DESTINO: "A caminho do destino",
+  A_CAMINHO_DESTINO: "A caminho do cliente",
   LIBERADO: "Liberado no porto",
   CARREGADO: "Carregado",
   ENTREGUE: "Entregue",
-  CHEGADA_MULTILOG: "Chegou à Multilog",
-  CHEGADA_ADUANA: "Chegou à aduana paraguaia",
-  SAIDA_ADUANA: "Saiu da aduana paraguaia",
-  CHEGADA_APPA: "Chegou ao porto APPA",
+  CHEGADA_MULTILOG: "MULTILOG",
+  CHEGADA_ADUANA: "ADUANA PARAGUAIA",
+  SAIDA_ADUANA: "ADUANA PARAGUAIA",
+  CHEGADA_APPA: "APPA",
 };
 
 export function isContainerStatus(value: string): value is ContainerStatus {
