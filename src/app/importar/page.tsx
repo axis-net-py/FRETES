@@ -99,6 +99,7 @@ function Importer() {
   }
   async function estimatePlanning(destination: string) {
     setRouteDetails(null);
+    if (!destination || destination.trim().length < 2) return;
     setPlanning(true);
     try {
       const response = await fetch("/api/route-estimate", {
