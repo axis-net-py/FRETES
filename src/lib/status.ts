@@ -5,6 +5,10 @@ export const CONTAINER_STATUSES = [
   "CARREGADO",
   "A_CAMINHO_DESTINO",
   "ENTREGUE",
+  "CHEGADA_MULTILOG",
+  "CHEGADA_ADUANA",
+  "SAIDA_ADUANA",
+  "CHEGADA_APPA",
 ] as const;
 
 export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
@@ -16,6 +20,10 @@ export const STATUS_LABELS: Record<ContainerStatus, string> = {
   LIBERADO: "Liberado no porto",
   CARREGADO: "Carregado",
   ENTREGUE: "Entregue",
+  CHEGADA_MULTILOG: "Chegou à Multilog",
+  CHEGADA_ADUANA: "Chegou à aduana paraguaia",
+  SAIDA_ADUANA: "Saiu da aduana paraguaia",
+  CHEGADA_APPA: "Chegou ao porto APPA",
 };
 
 export function isContainerStatus(value: string): value is ContainerStatus {
