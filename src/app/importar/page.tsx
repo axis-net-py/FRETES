@@ -345,7 +345,25 @@ function Importer() {
           <div className="form-grid">
             {(Object.keys(fieldLabels) as (keyof DocumentFields)[]).map((k) => (
               <label key={k}>
-                {fieldLabels[k]}
+                <span className="flex justify-between items-center">
+                  <span>{fieldLabels[k]}</span>
+                  {k === "code" && (
+                    <button
+                      type="button"
+                      disabled={busy || planning}
+                      className="text-xs text-blue-600 underline font-normal hover:text-blue-800"
+                      onClick={() => {
+                        const mic = (fields.micDta || "").trim();
+                        const csCode = mic
+                          ? `CS-${mic}`
+                          : `CS-${Date.now().toString().slice(-6)}`;
+                        setFields({ ...fields, code: csCode });
+                      }}
+                    >
+                      Definir como Carga Solta
+                    </button>
+                  )}
+                </span>
                 <input
                   value={fields[k]}
                   disabled={busy || planning}
@@ -365,7 +383,12 @@ function Importer() {
                     "driverName",
                     "truckPlate",
                   ].includes(k)}
-                  maxLength={k === "code" ? 11 : 160}
+                  maxLength={k === "code" ? 30 : 160}
+                  placeholder={
+                    k === "code"
+                      ? "Ex: MRSU2904847 ou CS-BR366200452"
+                      : undefined
+                  }
                 />
               </label>
             ))}

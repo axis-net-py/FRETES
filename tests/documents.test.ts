@@ -83,6 +83,10 @@ test("validates reviewed freight amount independently of cargo value", () => {
     documentFieldsSchema.safeParse({ ...fields, code: "ilegível" }).success,
     false,
   );
+  assert.equal(
+    documentFieldsSchema.safeParse({ ...fields, code: "CS-BR366200452" }).success,
+    true,
+  );
 });
 test("uses actual file signatures rather than filename or claimed MIME", () => {
   assert.equal(detectDocumentType(Buffer.from("%PDF-1.7")), "application/pdf");
@@ -106,15 +110,16 @@ test("extraction rules reject scheduling-guide traps and re-read stale documents
     "Laden Dely",
     "Guia de Agendamento",
     "português",
+    "CARGA SOLTA",
   ])
     assert.ok(documentInstructions.includes(rule), `missing rule: ${rule}`);
-  assert.equal(shouldReExtract({ promptVersion: 6, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
-  assert.equal(shouldReExtract({ promptVersion: 7, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
-  assert.equal(shouldReExtract({ promptVersion: 7, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 7, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), true);
+  assert.equal(shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 0), false);
+  assert.equal(shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "" }, warning: "" }], warning: "" }, 0), true);
   assert.equal(shouldReExtract({ fields: { code: "2604487211" } }, 0), true);
   assert.equal(shouldReExtract(null, 0), true);
   assert.equal(
-    shouldReExtract({ promptVersion: 7, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
+    shouldReExtract({ promptVersion: 8, trips: [{ fields: { code: "MRSU2904847" }, warning: "" }], warning: "" }, 2),
     false,
   );
 });
@@ -202,6 +207,18 @@ test("sanitizer strips carrier clients and scheduling numbers without touching v
   assert.equal(valid.fields.micDta, "MIC-TEST");
   assert.equal(valid.fields.crt, "BR366200277");
   assert.deepEqual(valid.notes, []);
+  const cargaSolta = sanitizeExtractedFields({
+    ...emptyFields,
+    clientName: "PATRICIA CAROLINA RIVAS GUERIN",
+    code: "CS-BR366200452",
+    micDta: "BR366200452",
+    crt: "BR366200299",
+  });
+  assert.equal(cargaSolta.fields.clientName, "PATRICIA CAROLINA RIVAS GUERIN");
+  assert.equal(cargaSolta.fields.code, "CS-BR366200452");
+  assert.equal(cargaSolta.fields.micDta, "BR366200452");
+  assert.equal(cargaSolta.fields.crt, "BR366200299");
+  assert.deepEqual(cargaSolta.notes, []);
 });
 test("Gemini trims pasted credentials and distinguishes transport failures", async (t) => {
   const previousKey = process.env.GEMINI_API_KEY;

@@ -9,7 +9,10 @@ const schema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z]{4}\d{7}$/, "Use 4 letras e 7 números no container."),
+    .regex(
+      /^(?:[A-Z]{4}\d{7}|[A-Z0-9\-\.\/]{3,30})$/,
+      "Use 4 letras e 7 números no container ou identificador de carga solta (ex: CS-BR366200452).",
+    ),
   clientId: z.string().min(1),
   driverId: z.string().min(1),
   geofenceId: z.string().optional(),

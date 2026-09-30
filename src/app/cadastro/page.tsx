@@ -284,13 +284,26 @@ function Registration() {
             {tab === "containers" && (
               <>
                 <label>
-                  Código do container
+                  <span className="flex justify-between items-center">
+                    <span>Código do container ou carga</span>
+                    <button
+                      type="button"
+                      className="text-xs text-blue-600 underline font-normal hover:text-blue-800"
+                      onClick={(e) => {
+                        const form = e.currentTarget.closest("form");
+                        const input = form?.elements.namedItem("code") as HTMLInputElement | null;
+                        if (input) input.value = `CS-${Date.now().toString().slice(-6)}`;
+                      }}
+                    >
+                      Gerar Carga Solta
+                    </button>
+                  </span>
                   <input
                     name="code"
-                    pattern="[A-Za-z]{4}[0-9]{7}"
-                    maxLength={11}
+                    pattern="[A-Za-z0-9\-\.\/]{3,30}"
+                    maxLength={30}
                     required
-                    placeholder="4 letras e 7 números"
+                    placeholder="Ex: MRSU2904847 ou CS-BR366200452"
                   />
                 </label>
                 <label>
