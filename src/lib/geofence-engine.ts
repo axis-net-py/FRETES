@@ -114,7 +114,9 @@ async function notifyCheckpoint(
     : c.truckPlate || c.trailerPlate
       ? `carga solta: ${[c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")}`
       : "carga";
-  
+
+  const destinationCity = c.destination || "destino a confirmar";
+
   const etaText = estimatedArrivalAt
     ? estimatedArrivalAt.toLocaleString("pt-BR", {
         timeZone: "America/Sao_Paulo",
@@ -123,25 +125,30 @@ async function notifyCheckpoint(
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
 
-  // Build message parts for client-focused notification
-  const cargoInfo = c.code ? `container ${c.code}` : "a carga";
-  const destination = c.destination || "destino a confirmar";
-  
+  // Build client-focused message
+  // Format: "Olá [CLIENTE], [carga info], [cliente] - [cidade destino]. Previsão: [ETA]"
+  const messageBody = `Olá ${c.client.name}, ${cargoDesc}. ${c.client.name} - ${c.destination || "destino a confirmar"}. Previsão: ${etaText}. Acompanhe: ${link}`;
+
   const parameters = [
     c.client.name,
-    c.code,
-    `${msg.eventText}. ${cargoDesc}`,
-    `${c.client.name} - ${c.destination || "destino a confirmar"}`,
+    c.code || "N/A",
+    c.code
+      ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
+      : c.truckPlate || c.trailerPlate
+        ? `carga solta: ${[c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ")}`
+        : "carga",
+    c.destination || "destino a confirmar",
     etaText,
     link,
   ];
+
   const n = await tx.notification.create({
     data: {
       containerId: c.id,
       to: c.client.whatsapp,
       kind,
       parameters: JSON.stringify(parameters),
-      body: `Olá ${parameters[0]}, ${parameters[2]}. ${parameters[3]}. Previsão: ${parameters[4]}. Acompanhe: ${link}`,
+      body: messageBody,
       provider: process.env.WHATSAPP_PROVIDER || "disabled",
       status:
         c.client.consent && !!c.client.whatsapp ? "PENDING" : "NO_CONSENT",
