@@ -41,6 +41,8 @@ export function notificationKindFor(
   if (gateKind === "MULTILOG" && event === "ENTER") return "MULTILOG_ARRIVAL";
   if (gateKind === "CUSTOMS_ENTRY" && event === "ENTER") return "CUSTOMS_ENTRY";
   if (gateKind === "CUSTOMS_EXIT" && event === "EXIT") return "CUSTOMS_EXIT";
+  if (gateKind === "DESTINATION" && event === "ENTER") return "DESTINATION_ARRIVAL";
+  if (gateKind === "DESTINATION" && event === "EXIT") return "DESTINATION_DEPARTURE";
   return `${gateKind}_${event}`;
 }
 
@@ -77,6 +79,18 @@ export function eventMessage(kind: string, crew: string): EventMessage {
         eventText: `${withCrew("foi liberado da aduana paraguaia")} e seguiu viagem`,
         subject: "Saída da aduana",
         headline: "Saída da aduana paraguaia confirmada pelo rastreamento.",
+      };
+    case "DESTINATION_ARRIVAL":
+      return {
+        eventText: withCrew("chegou à cidade de destino"),
+        subject: "Chegada ao destino",
+        headline: "Chegada ao destino confirmada pelo rastreamento.",
+      };
+    case "DESTINATION_DEPARTURE":
+      return {
+        eventText: withCrew("saiu da cidade de destino"),
+        subject: "Saída do destino",
+        headline: "Saída do destino confirmada - frete concluído.",
       };
     default:
       return {
