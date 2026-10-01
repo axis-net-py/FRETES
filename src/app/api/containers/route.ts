@@ -18,6 +18,7 @@ const schema = z.object({
   geofenceId: z.string().optional(),
   origin: z.string().trim().max(160),
   destination: z.string().trim().max(160),
+  cargoDescription: z.string().trim().max(120).optional(),
   transitHours: z.coerce.number().int().min(1).max(720).optional(),
 });
 export async function GET() {

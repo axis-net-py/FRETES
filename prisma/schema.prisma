@@ -54,6 +54,7 @@ model Container {
   freightValue String?
   freightCurrency String?
   seal String?
+  cargoDescription String?
   transitHours Int?
   routeDurationSeconds Int?
   operationalMarginSeconds Int?

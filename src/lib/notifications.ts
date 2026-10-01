@@ -10,6 +10,7 @@ export function departureEmail(
     departedAt: Date | null;
     truckPlate: string | null;
     trailerPlate: string | null;
+    cargoDescription?: string | null;
     client: { name: string };
     driver: { name: string } | null;
     parameters: string;
@@ -38,7 +39,9 @@ export function departureEmail(
     parsed[0] ||
     (isContainerCode(container.code)
       ? `container ${container.code.trim().toUpperCase()}`
-      : container.code.trim().toUpperCase() || "carga solta");
+      : container.cargoDescription?.trim().toUpperCase() ||
+        container.code.trim().toUpperCase() ||
+        "carga solta");
   const event = parsed[1] || eventMessage(kind).eventText;
   const plates = [container.truckPlate, container.trailerPlate]
     .filter(Boolean)

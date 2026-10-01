@@ -12,6 +12,7 @@ export const fieldLabels = {
   origin: "Origem do frete",
   destination: "Destino do frete",
   seal: "Lacre",
+  cargoDescription: "Conteúdo da carga (carga solta)",
 };
 export type DocumentFields = Record<keyof typeof fieldLabels, string>;
 export const emptyFields = Object.fromEntries(
@@ -47,6 +48,7 @@ export const documentFieldsSchema = z
     origin: z.string().trim().max(160),
     destination: z.string().trim().max(160),
     seal: z.string().trim().max(80),
+    cargoDescription: z.string().trim().max(120),
   })
   .refine(
     (d) => !d.freightValue || !!d.freightCurrency,

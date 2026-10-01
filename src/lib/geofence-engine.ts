@@ -23,6 +23,7 @@ type CheckpointContainer = {
   truckPlate: string | null;
   trailerPlate: string | null;
   seal: string | null;
+  cargoDescription: string | null;
 };
 
 type CheckpointOutcome = {
@@ -121,12 +122,15 @@ async function notifyCheckpoint(
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
 
-  // The cargo is always the freight identifier from the document:
-  // "container X (lacre Y)" for containers, the bare identifier
-  // (e.g. CS-BR366200452) for loose cargo. Plates belong to the crew.
+  // The cargo is "container X (lacre Y)" for containers, or the short
+  // goods description from the document (e.g. 02 CAMINHÕES USADOS) for
+  // loose cargo, falling back to the freight identifier. Plates belong
+  // to the crew, never to the cargo.
   const cargo = isContainerCode(c.code)
     ? `container ${c.code.trim().toUpperCase()}${c.seal ? ` (lacre ${c.seal})` : ""}`
-    : c.code.trim().toUpperCase() || "carga solta";
+    : c.cargoDescription?.trim().toUpperCase() ||
+      c.code.trim().toUpperCase() ||
+      "carga solta";
   const parameters = [
     cargo,
     msg.eventText,

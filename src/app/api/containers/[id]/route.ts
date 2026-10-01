@@ -37,6 +37,7 @@ const schema = z
       .toUpperCase()
       .regex(/^(?:[A-Z]{3})?$/, "Informe uma moeda de 3 letras."),
     seal: z.string().trim().max(80),
+    cargoDescription: z.string().trim().max(120).optional(),
     transitHours: z.coerce.number().int().min(1).max(720),
   })
   .refine(

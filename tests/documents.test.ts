@@ -219,6 +219,18 @@ test("sanitizer strips carrier clients and scheduling numbers without touching v
   assert.equal(cargaSolta.fields.micDta, "BR366200452");
   assert.equal(cargaSolta.fields.crt, "BR366200299");
   assert.deepEqual(cargaSolta.notes, []);
+  const looseDesc = sanitizeExtractedFields({
+    ...emptyFields,
+    code: "CS-BR366200452",
+    cargoDescription: "02 CAMINHÕES USADOS",
+  });
+  assert.equal(looseDesc.fields.cargoDescription, "02 CAMINHÕES USADOS");
+  const containerDesc = sanitizeExtractedFields({
+    ...emptyFields,
+    code: "MRSU2904847",
+    cargoDescription: "02 CAMINHÕES USADOS",
+  });
+  assert.equal(containerDesc.fields.cargoDescription, "");
 });
 test("Gemini trims pasted credentials and distinguishes transport failures", async (t) => {
   const previousKey = process.env.GEMINI_API_KEY;

@@ -79,6 +79,7 @@ export type Freight = {
   freightValue?: string;
   freightCurrency?: string;
   seal?: string;
+  cargoDescription?: string;
   transitHours?: number;
   routeDurationSeconds?: number;
   operationalMarginSeconds?: number;
@@ -827,6 +828,7 @@ export default function Dashboard({
                     ["freightValue", "Valor do frete", selected.freightValue],
                     ["freightCurrency", "Moeda", selected.freightCurrency],
                     ["seal", "Lacre", selected.seal],
+                    ["cargoDescription", "Conteúdo da carga", selected.cargoDescription],
                   ].map(([name, label, value]) => (
                     <label key={name}>
                       {label}
