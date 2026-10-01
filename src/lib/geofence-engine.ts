@@ -182,6 +182,10 @@ export type PositionSource = "DEVICE" | "GLOBALSAT";
 export type ProcessPositionOptions = {
   source?: PositionSource;
   externalId?: string;
+  // Replay re-evaluates already-stored positions (e.g. freights created
+  // after the GPS fixes arrived): skips external-ID dedup and does not
+  // insert duplicate position rows.
+  replay?: boolean;
 };
 export function validPositionTime(
   recordedAt: string,
@@ -213,6 +217,7 @@ export async function processPosition(
       });
       if (!c) throw new Error("Frete não vinculado ao motorista");
       if (
+        !options.replay &&
         options.externalId &&
         (await tx.position.findFirst({
           where: { source, externalId: options.externalId },
@@ -234,14 +239,16 @@ export async function processPosition(
       // The freight document selects the port gate: TPC for containers,
       // APPA for loose cargo.
       const gate = journeyTarget(gates, journeyEvents, c.code);
-      await tx.position.create({
-        data: {
-          ...input,
-          recordedAt: fixAt,
-          source,
-          externalId: options.externalId,
-        },
-      });
+      if (!options.replay) {
+        await tx.position.create({
+          data: {
+            ...input,
+            recordedAt: fixAt,
+            source,
+            externalId: options.externalId,
+          },
+        });
+      }
       // Journey complete: keep silent tracking, no Decisions.
       if (!gate) {
         await tx.container.update({

@@ -28,9 +28,17 @@ export async function POST(
         { status: 422 },
       );
 
-    // Reset journey state so historical positions can be re-evaluated
+    // Reset journey state so historical positions can be re-evaluated.
+    // Unsent notifications are discarded (they regenerate); already
+    // accepted ones are kept as history.
     await prisma.$transaction(async (tx) => {
       await tx.geofenceEvent.deleteMany({ where: { containerId: id } });
+      await tx.notification.deleteMany({
+        where: {
+          containerId: id,
+          status: { in: ["PENDING", "FAILED", "UNCONFIGURED", "SENDING"] },
+        },
+      });
       await tx.container.update({
         where: { id },
         data: {
@@ -68,7 +76,7 @@ export async function POST(
           accuracyM: pos.accuracyM ?? 50,
           recordedAt: pos.recordedAt.toISOString(),
         },
-        { source: "GLOBALSAT", externalId: pos.externalId || undefined },
+        { source: "GLOBALSAT", replay: true },
       );
       reprocessed++;
     }
