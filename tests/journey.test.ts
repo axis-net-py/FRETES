@@ -130,3 +130,17 @@ test("formatUpdateMessage leads with cargo state, no client greeting", () => {
   assert.ok(text.includes("Previsão de chegada: 27/09/2026 06:14."));
   assert.ok(text.endsWith("Acompanhe o trajeto: https://axis-fretes.vercel.app/acompanhar#abc."));
 });
+
+test("loose cargo message uses the freight identifier, plates stay with the crew", () => {
+  const text = formatUpdateMessage([
+    "CS-BR366200452",
+    "acaba de sair do Porto de Paranaguá e iniciou o trajeto",
+    "MARCOS TASSI com caminhão AARG801 / AAOA125",
+    "PATRICIA CAROLINA RIVAS GUERIN com destino COLONIA TIROL - ITAPUA - PARAGUAY",
+    "01/10/2026, 20:32",
+    "",
+  ]);
+  assert.ok(text.includes("a carga CS-BR366200452 acaba de sair"));
+  assert.ok(!text.includes("a carga AARG801"));
+  assert.ok(text.includes("MARCOS TASSI com caminhão AARG801 / AAOA125"));
+});

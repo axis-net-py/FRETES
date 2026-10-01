@@ -38,9 +38,7 @@ export function departureEmail(
     parsed[0] ||
     (isContainerCode(container.code)
       ? `container ${container.code.trim().toUpperCase()}`
-      : [container.truckPlate, container.trailerPlate]
-          .filter(Boolean)
-          .join(" / ") || "carga solta");
+      : container.code.trim().toUpperCase() || "carga solta");
   const event = parsed[1] || eventMessage(kind).eventText;
   const plates = [container.truckPlate, container.trailerPlate]
     .filter(Boolean)

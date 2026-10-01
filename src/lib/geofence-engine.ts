@@ -121,11 +121,12 @@ async function notifyCheckpoint(
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
 
-  // Loose cargo (machinery, vehicles, CS-* identifiers) is described by
-  // plates; only valid container codes use the container wording.
+  // The cargo is always the freight identifier from the document:
+  // "container X (lacre Y)" for containers, the bare identifier
+  // (e.g. CS-BR366200452) for loose cargo. Plates belong to the crew.
   const cargo = isContainerCode(c.code)
     ? `container ${c.code.trim().toUpperCase()}${c.seal ? ` (lacre ${c.seal})` : ""}`
-    : [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ") || "carga solta";
+    : c.code.trim().toUpperCase() || "carga solta";
   const parameters = [
     cargo,
     msg.eventText,
