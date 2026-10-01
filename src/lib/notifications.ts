@@ -292,13 +292,15 @@ export async function sendWhatsAppTestMessage(options: {
   }
 
   if (template) {
+    // Same order as live notifications: cargo, event, crew, client +
+    // destination, ETA, tracking link. Marked as test in the event text.
     const testParams = [
-      "Operador (Teste)",
-      "TEST001",
-      "saiu do porto em direção ao destino",
-      "Assunção - PY",
-      "Hoje às 18:00 (estimativa)",
-      "https://fretes.axis-net.com",
+      "02 CAMINHÕES USADOS",
+      "acaba de sair do Porto de Paranaguá e iniciou o trajeto (mensagem de teste)",
+      "MOTORISTA TESTE com caminhão TST0000 / TST0001",
+      "CLIENTE TESTE com destino CIDADE TESTE - PY",
+      "Hoje às 18:00 (horário de Brasília; estimativa)",
+      "https://axis-fretes.vercel.app/acompanhar#teste",
     ];
     const messageId = await sendTemplateMessage(
       { token, phone, version, template },
