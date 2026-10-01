@@ -188,19 +188,35 @@ export function fallbackExtractFromPdfText(pdfText: string): TripExtraction[] {
 
   // Client name
   let clientName = "";
-  const avdaIdx = pdfText.search(/\bAVDA\./i);
-  if (avdaIdx !== -1) {
-    const beforeLines = pdfText.slice(0, avdaIdx).trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-    const candidate = beforeLines[beforeLines.length - 1] || "";
-    if (candidate.length >= 3 && !candidate.includes("Origem") && !candidate.includes("PARANAGUA")) {
-      clientName = candidate;
-    }
+  const destMatch = pdfText.match(
+    /(?:34\s*Destinatario[^\n\r]*|35\s*Consignat[aá]rio[^\n\r]*)[\r\n]+\s*([A-Z\s]{3,50}\b)/i,
+  );
+  if (
+    destMatch &&
+    !destMatch[1].includes("AVDA") &&
+    !destMatch[1].includes("AVENIDA") &&
+    !destMatch[1].includes("Origem") &&
+    !destMatch[1].includes("PARANAGUA")
+  ) {
+    clientName = destMatch[1].trim();
   }
   if (!clientName) {
-    const destMatch = pdfText.match(/(?:34\s*Destinatario|35\s*Consignat[aá]rio)[\s\S]*?\n\s*([A-Z\s]{4,50}\b)/i);
-    if (destMatch) {
-      const raw = destMatch[1].trim();
-      if (!raw.includes("AVDA") && !raw.includes("Origem")) clientName = raw;
+    const avdaIdx = pdfText.search(/\b(?:AVDA\.?|AVENIDA)\b/i);
+    if (avdaIdx !== -1) {
+      const beforeLines = pdfText
+        .slice(0, avdaIdx)
+        .trim()
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      const candidate = beforeLines[beforeLines.length - 1] || "";
+      if (
+        candidate.length >= 3 &&
+        !candidate.includes("Origem") &&
+        !candidate.includes("PARANAGUA")
+      ) {
+        clientName = candidate;
+      }
     }
   }
 
@@ -221,15 +237,22 @@ export function fallbackExtractFromPdfText(pdfText: string): TripExtraction[] {
     }
   }
 
-  const origin = text.includes("PARANAGUA") ? "Porto de Paranaguá" : "";
+  let origin = "Porto de Paranaguá";
+  if (text.includes("SANTOS")) origin = "Porto de Santos";
+  else if (text.includes("PARANAGUA")) origin = "Porto de Paranaguá";
+
   let destination = "";
-  if (text.includes("COLONIA TIROL")) {
+  if (text.includes("KATUETE")) {
+    destination = "KATUETE - PARAGUAI";
+  } else if (text.includes("COLONIA TIROL")) {
     destination = "COLONIA TIROL - ITAPUA - PARAGUAY";
-  } else if (text.includes("KATUETE")) {
-    destination = "KATUETE - CANINDEYU - PARAGUAY";
+  } else if (text.includes("LAMBARE")) {
+    destination = "LAMBARE - PARAGUAI";
+  } else if (text.includes("SANTA RITA")) {
+    destination = "SANTA RITA - PARAGUAI";
   } else if (text.includes("ASUNCION")) {
     destination = "ASUNCION";
-  } else if (text.includes("CIUDAD DEL ESTE")) {
+  } else if (text.includes("CIUDAD DEL ESTE") && !text.includes("ADM.ADUANA CIUDAD DEL ESTE")) {
     destination = "CIUDAD DEL ESTE";
   }
 

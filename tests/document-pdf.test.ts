@@ -93,3 +93,28 @@ test("fallbackExtractFromPdfText extracts fields when AI quota is exceeded", () 
   assert.equal(f.destination, "COLONIA TIROL - ITAPUA - PARAGUAY");
 });
 
+test("fallbackExtractFromPdfText extracts Katuete document with AVENIDA and Campo 34", () => {
+  const sampleText = `
+    33 Remitente / Remetente
+    BENGBU USINA IMPORT AND EXPORT CO.,LTD
+    ROOM 05, 23RD FLOOR, CHINA
+    34 Destinatario / Destinatário
+    MICHAEL PATRICIO GRIEBELER
+    AVENIDA LAS RESIDENTAS, RUTA 3, KATUETE, PARAGUAI. RUC: 6026695-3
+    24 Aduana de destino: ADM.ADUANA CIUDAD DEL ESTE-PY
+    7 Aduana de partida: DRF.PORTO DE PARANAGUA
+    MIC DTA 26/0478404-6
+    11 Placa del camión AARG801
+    15 Semi Remolque AAOA125
+    49.484,56 2.500,00 123,71
+    USD
+  `;
+  const { fallbackExtractFromPdfText } = require("../src/lib/document-pdf.ts");
+  const trips = fallbackExtractFromPdfText(sampleText);
+  assert.equal(trips.length, 1);
+  const f = trips[0].fields;
+  assert.equal(f.clientName, "MICHAEL PATRICIO GRIEBELER");
+  assert.equal(f.origin, "Porto de Paranaguá");
+  assert.equal(f.destination, "KATUETE - PARAGUAI");
+});
+
