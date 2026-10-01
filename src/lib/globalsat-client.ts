@@ -154,6 +154,7 @@ export class GlobalSatClient {
       clientId: string;
       clientSecret: string;
       baseUrl?: string;
+      retryDelayMs?: number;
       tokenStore?: {
         load(): Promise<{ token: string; expiresAt: number } | null>;
         save(value: { token: string; expiresAt: number }): Promise<void>;
@@ -189,7 +190,18 @@ export class GlobalSatClient {
     }
   }
 
-  private async obtainToken(force: boolean) {
+  // A single delayed retry absorbs transient 429s without failing the
+  // whole sync; persistent rate limits still surface as RATE_LIMITED.
+  private async backoffRetry() {
+    await new Promise((resolve) =>
+      setTimeout(resolve, this.config.retryDelayMs ?? 15000),
+    );
+  }
+
+  private async obtainToken(
+    force: boolean,
+    rateRetried = false,
+  ): Promise<string> {
     if (!force && this.config.tokenStore) {
       const cached = await this.config.tokenStore.load();
       if (cached && cached.expiresAt > Date.now()) {
@@ -214,6 +226,10 @@ export class GlobalSatClient {
         body,
       },
     );
+    if (response.status === 429 && !rateRetried) {
+      await this.backoffRetry();
+      return this.obtainToken(force, true);
+    }
     if (!response.ok)
       throw new GlobalSatError(
         response.status === 429 ? "RATE_LIMITED" : "AUTH",
@@ -234,6 +250,7 @@ export class GlobalSatClient {
     path: string,
     body: URLSearchParams,
     retried = false,
+    rateRetried = false,
   ): Promise<unknown> {
     const token = await this.token(retried);
     const response = await this.fetchResponse(`${this.baseUrl}${path}`, {
@@ -248,9 +265,13 @@ export class GlobalSatClient {
     if (response.status === 401 && !retried) {
       this.accessToken = null;
       this.tokenExpiresAt = 0;
-      return this.post(path, body, true);
+      return this.post(path, body, true, rateRetried);
     }
     if (response.status === 401) throw new GlobalSatError("AUTH");
+    if (response.status === 429 && !rateRetried) {
+      await this.backoffRetry();
+      return this.post(path, body, retried, true);
+    }
     if (response.status === 429) throw new GlobalSatError("RATE_LIMITED");
     if (response.status >= 500) throw new GlobalSatError("UPSTREAM");
     if (!response.ok) throw new GlobalSatError("INVALID_RESPONSE");

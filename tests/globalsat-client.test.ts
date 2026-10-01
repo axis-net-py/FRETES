@@ -124,7 +124,7 @@ test("uses date or cursor for tracking reports and sanitizes rate limits", async
     });
   };
   const client = new GlobalSatClient(
-    { clientId: "client", clientSecret: "secret" },
+    { clientId: "client", clientSecret: "secret", retryDelayMs: 1 },
     fetcher as typeof fetch,
   );
   await client.getTrackingData({
@@ -155,6 +155,34 @@ test("uses date or cursor for tracking reports and sanitizes rate limits", async
       error.code === "RATE_LIMITED" &&
       !error.message.includes("private"),
   );
+  rateLimited = false;
+  const recovered = await client.getTrackingData({
+    targetIds: [5847],
+    fromId: BigInt(1),
+    limit: 100,
+  });
+  assert.equal(recovered.rows, 0);
+});
+
+test("a single 429 is retried once after a backoff", async () => {
+  let calls = 0;
+  const fetcher = async (input: string | URL | Request) => {
+    if (String(input).endsWith("/oauth/access_token"))
+      return json({
+        access_token: "token",
+        token_type: "Bearer",
+        expires_in: 86400,
+      });
+    calls += 1;
+    if (calls === 1) return json({ error: "slow down" }, 429);
+    return json([]);
+  };
+  const client = new GlobalSatClient(
+    { clientId: "client", clientSecret: "secret", retryDelayMs: 1 },
+    fetcher as typeof fetch,
+  );
+  assert.deepEqual(await client.listTargets(), []);
+  assert.equal(calls, 2);
 });
 
 test("reuses a persisted token across client instances and coalesces concurrent authentication", async () => {

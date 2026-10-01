@@ -21,8 +21,11 @@ jobs:
         run: |
           test -n "$APP_URL"
           test -n "$GLOBALSAT_SYNC_SECRET"
+          # No --retry-all-errors: retrying HTTP 5xx immediately would
+          # triple the load on GlobalSAT while it is rate limiting us.
+          # Transient 429s get one delayed retry inside the sync itself.
           curl --fail-with-body --silent --show-error \
-            --retry 2 --retry-all-errors --max-time 45 \
+            --retry 2 --max-time 60 \
             -X POST \
             -H "Authorization: Bearer $GLOBALSAT_SYNC_SECRET" \
             "$APP_URL/api/integrations/globalsat/cron"
