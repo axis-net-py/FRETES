@@ -64,12 +64,30 @@ test("port gate follows the freight document: TPC for containers, APPA for loose
   assert.equal(journeyTarget(portGates, [], "CS-BR366200452")?.id, "appa");
   // Containers skip APPA and start at TPC.
   assert.equal(journeyTarget(portGates, [], "OOCU7205410")?.id, "tpc");
+  // Production creation order (APPA last) still starts loose cargo at APPA.
+  const prodOrder: JourneyGate[] = [
+    { id: "tpc", kind: "PORT_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "multi", kind: "MULTILOG", notifyOnEnter: true, notifyOnExit: false },
+    { id: "entry", kind: "CUSTOMS_ENTRY", notifyOnEnter: true, notifyOnExit: false },
+    { id: "exit", kind: "CUSTOMS_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "appa", kind: "APPA", notifyOnEnter: false, notifyOnExit: true },
+  ];
+  assert.equal(journeyTarget(prodOrder, [], "CS-BR366200452")?.id, "appa");
+  assert.equal(journeyTarget(prodOrder, [], "OOCU7205410")?.id, "tpc");
   // After the correct port exit, both flows continue to Multilog.
   assert.equal(
     journeyTarget(
       portGates,
       [{ geofenceId: "appa", type: "EXIT" }],
       "CS-BR366200452",
+    )?.id,
+    "multi",
+  );
+  assert.equal(
+    journeyTarget(
+      prodOrder,
+      [{ geofenceId: "tpc", type: "EXIT" }],
+      "OOCU7205410",
     )?.id,
     "multi",
   );
