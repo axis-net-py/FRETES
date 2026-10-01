@@ -238,8 +238,21 @@ export function fallbackExtractFromPdfText(pdfText: string): TripExtraction[] {
   }
 
   let origin = "Porto de Paranaguá";
-  if (text.includes("SANTOS")) origin = "Porto de Santos";
-  else if (text.includes("PARANAGUA")) origin = "Porto de Paranaguá";
+  if (/CHINA|BENGSHAN|BENGBU/i.test(text)) {
+    origin = "China";
+  } else if (/NETHERLANDS|HOLANDA|VUREN/i.test(text)) {
+    origin = "Holanda";
+  } else if (/BELGIUM|B[EÉ]LGICA/i.test(text)) {
+    origin = "Bélgica";
+  } else if (/GERMANY|ALEMANHA/i.test(text)) {
+    origin = "Alemanha";
+  } else if (/ESTADOS UNIDOS|UNITED STATES|\bUSA\b/i.test(text)) {
+    origin = "Estados Unidos";
+  } else if (text.includes("SANTOS")) {
+    origin = "Porto de Santos";
+  } else if (text.includes("PARANAGUA")) {
+    origin = "Porto de Paranaguá";
+  }
 
   let destination = "";
   if (text.includes("KATUETE")) {

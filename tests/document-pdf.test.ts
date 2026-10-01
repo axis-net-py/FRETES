@@ -114,7 +114,32 @@ test("fallbackExtractFromPdfText extracts Katuete document with AVENIDA and Camp
   assert.equal(trips.length, 1);
   const f = trips[0].fields;
   assert.equal(f.clientName, "MICHAEL PATRICIO GRIEBELER");
-  assert.equal(f.origin, "Porto de Paranaguá");
+  assert.equal(f.origin, "China");
   assert.equal(f.destination, "KATUETE - PARAGUAI");
+});
+
+test("fallbackExtractFromPdfText extracts Holanda import with Kleyn Trucks and Lambare destination", () => {
+  const sampleText = `
+    33 Remitente / Remetente
+    KLEYN TRUCKS BV
+    INDUSTRIEWEG 2, 4214 KZ VUREN THE NETHERLANDS
+    34 Destinatario / Destinatário
+    PATRICIA CAROLINA RIVAS GUERIN
+    AVDA. CACIQUE LAMBARE 4044 LAMBARE / PARAGUAY. RUC: 2578598-2
+    24 Aduana de destino: ADM.ADUANA CIUDAD DEL ESTE-PY
+    7 Aduana de partida: DRF.PORTO DE PARANAGUA
+    MIC DTA 26/0478404-6
+    11 Placa del camión AARG801
+    15 Semi Remolque AAOA125
+    49.484,56 2.500,00 123,71
+    USD
+  `;
+  const { fallbackExtractFromPdfText } = require("../src/lib/document-pdf.ts");
+  const trips = fallbackExtractFromPdfText(sampleText);
+  assert.equal(trips.length, 1);
+  const f = trips[0].fields;
+  assert.equal(f.clientName, "PATRICIA CAROLINA RIVAS GUERIN");
+  assert.equal(f.origin, "Holanda");
+  assert.equal(f.destination, "LAMBARE - PARAGUAI");
 });
 
