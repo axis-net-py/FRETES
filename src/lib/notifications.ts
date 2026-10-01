@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { emailOpsConfig, sendOpsEmail, type MailTransport } from "./email";
-import { eventMessage, formatUpdateMessage } from "./journey";
+import { eventMessage, formatUpdateMessage, isContainerCode } from "./journey";
 
 export function departureEmail(
   container: {
@@ -36,8 +36,8 @@ export function departureEmail(
   })();
   const cargo =
     parsed[0] ||
-    (container.code
-      ? `container ${container.code}`
+    (isContainerCode(container.code)
+      ? `container ${container.code.trim().toUpperCase()}`
       : [container.truckPlate, container.trailerPlate]
           .filter(Boolean)
           .join(" / ") || "carga solta");

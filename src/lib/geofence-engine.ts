@@ -6,6 +6,7 @@ import {
   notificationKindFor,
   eventMessage,
   formatUpdateMessage,
+  isContainerCode,
 } from "./journey";
 import { prisma } from "./prisma";
 import { dispatchNotification } from "./notifications";
@@ -71,7 +72,11 @@ async function notifyCheckpoint(
   let link = "";
   const departedAt = at;
   let estimatedArrivalAt = c.estimatedArrivalAt;
-  if (gate.kind === "PORT_EXIT" && event === "EXIT") {
+  // TPC (PORT_EXIT) serves containers, APPA serves loose cargo; both
+  // confirm departure the same way.
+  const isPortDeparture =
+    (gate.kind === "PORT_EXIT" || gate.kind === "APPA") && event === "EXIT";
+  if (isPortDeparture) {
     estimatedArrivalAt = c.transitHours
       ? new Date(at.getTime() + c.transitHours * 3600000)
       : null;
@@ -116,8 +121,10 @@ async function notifyCheckpoint(
       }) + " (horário de Brasília; estimativa)"
     : "A confirmar pela transportadora";
 
-  const cargo = c.code
-    ? `container ${c.code}${c.seal ? ` (lacre ${c.seal})` : ""}`
+  // Loose cargo (machinery, vehicles, CS-* identifiers) is described by
+  // plates; only valid container codes use the container wording.
+  const cargo = isContainerCode(c.code)
+    ? `container ${c.code.trim().toUpperCase()}${c.seal ? ` (lacre ${c.seal})` : ""}`
     : [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ") || "carga solta";
   const parameters = [
     cargo,
@@ -145,13 +152,13 @@ async function notifyCheckpoint(
           : "WhatsApp ou autorização do cliente pendente.",
     },
   });
+  const isPortGate = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
   return {
-    status:
-      gate.kind === "PORT_EXIT" && event === "EXIT"
-        ? "A_CAMINHO_DESTINO"
-        : gate.kind === "PORT_EXIT"
-          ? "CHEGADA_PORTAO"
-          : c.status,
+    status: isPortDeparture
+      ? "A_CAMINHO_DESTINO"
+      : isPortGate
+        ? "CHEGADA_PORTAO"
+        : c.status,
     gate,
     containerId: c.id,
     code: c.code,
@@ -224,7 +231,9 @@ export async function processPosition(
         where: { containerId: c.id },
         select: { geofenceId: true, type: true },
       });
-      const gate = journeyTarget(gates, journeyEvents);
+      // The freight document selects the port gate: TPC for containers,
+      // APPA for loose cargo.
+      const gate = journeyTarget(gates, journeyEvents, c.code);
       await tx.position.create({
         data: {
           ...input,
@@ -256,7 +265,8 @@ export async function processPosition(
             ...common,
             exitCandidateAt: null,
             gateEnteredAt: c.gateEnteredAt || fixAt,
-            ...(gate.kind === "PORT_EXIT" && c.status === "EM_TRANSITO"
+            ...((gate.kind === "PORT_EXIT" || gate.kind === "APPA") &&
+            c.status === "EM_TRANSITO"
               ? { status: "CHEGADA_PORTAO" }
               : {}),
           },
@@ -289,7 +299,10 @@ export async function processPosition(
               container: c,
             });
           return {
-            status: gate.kind === "PORT_EXIT" ? "CHEGADA_PORTAO" : c.status,
+            status:
+              gate.kind === "PORT_EXIT" || gate.kind === "APPA"
+                ? "CHEGADA_PORTAO"
+                : c.status,
             gate,
             containerId: c.id,
             code: c.code,

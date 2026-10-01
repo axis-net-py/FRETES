@@ -23,21 +23,46 @@ export function gateCompleted(
   return gate.notifyOnExit ? hasExit : hasEnter;
 }
 
+// The port of Paranaguá is split in two: TPC (PORT_EXIT) handles
+// containers, APPA handles loose cargo (machinery, vehicles, etc.).
+// The freight document decides which port gate applies: a valid
+// container code (4 letters + 7 digits) targets TPC, anything else
+// targets APPA. The remaining gates are shared by both flows.
+export function isContainerCode(code: string | null | undefined): boolean {
+  return /^[A-Z]{4}[0-9]{7}$/.test((code || "").trim().toUpperCase());
+}
+
+export function portGateKindFor(code: string | null | undefined): string {
+  return isContainerCode(code) ? "PORT_EXIT" : "APPA";
+}
+
 // The journey is every active gate in creation order; the target is the
 // first incomplete one. Out-of-order arrivals still record, but the
 // engine only evaluates the target, so overlapping zones never collide.
+// When both port gates exist, the irrelevant one for this cargo is
+// skipped; with a single port gate it always applies (legacy setups).
 export function journeyTarget<T extends JourneyGate>(
   gates: T[],
   events: JourneyEvent[],
+  code?: string | null,
 ): T | null {
-  return gates.find((gate) => !gateCompleted(gate, events)) || null;
+  const kinds = new Set(gates.map((gate) => gate.kind));
+  const bothPorts = kinds.has("PORT_EXIT") && kinds.has("APPA");
+  const skip =
+    code !== undefined && bothPorts ? portGateKindFor(code) === "PORT_EXIT" ? "APPA" : "PORT_EXIT" : null;
+  return (
+    gates.find(
+      (gate) => gate.kind !== skip && !gateCompleted(gate, events),
+    ) || null
+  );
 }
 
 export function notificationKindFor(
   gateKind: string,
   event: "ENTER" | "EXIT",
 ): string {
-  if (gateKind === "PORT_EXIT" && event === "EXIT") return "DEPARTURE";
+  if ((gateKind === "PORT_EXIT" || gateKind === "APPA") && event === "EXIT")
+    return "DEPARTURE";
   if (gateKind === "MULTILOG" && event === "ENTER") return "MULTILOG_ARRIVAL";
   if (gateKind === "CUSTOMS_ENTRY" && event === "ENTER") return "CUSTOMS_ENTRY";
   if (gateKind === "CUSTOMS_EXIT" && event === "EXIT") return "CUSTOMS_EXIT";
