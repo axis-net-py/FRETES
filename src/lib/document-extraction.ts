@@ -229,7 +229,7 @@ const geminiSafetySettings = [
 async function extractGemini(content: Buffer, mimeType: string) {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   const configuredModel = (
-    process.env.GEMINI_DOCUMENT_MODEL || "gemini-2.5-flash"
+    process.env.GEMINI_DOCUMENT_MODEL || "gemini-3.5-flash-lite"
   ).trim();
   if (!apiKey || !configuredModel)
     throw new DocumentExtractionError(
@@ -239,10 +239,10 @@ async function extractGemini(content: Buffer, mimeType: string) {
 
   const candidateModels = [
     configuredModel,
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
     "gemini-2.5-flash-lite",
-    "gemini-1.5-flash-8b",
+    "gemini-2.5-flash",
   ];
   const models = [...new Set(candidateModels.filter(Boolean))];
 

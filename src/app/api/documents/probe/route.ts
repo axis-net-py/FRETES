@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function GET(req: Request) {
   const unauthorized = await adminRequestError(req);
   if (unauthorized) return unauthorized;
-  const model = (process.env.GEMINI_DOCUMENT_MODEL || "gemini-2.5-flash").trim();
+  const model = (process.env.GEMINI_DOCUMENT_MODEL || "gemini-3.5-flash-lite").trim();
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey || !model)
     return NextResponse.json({ ok: false, stage: "config" }, { status: 503 });
