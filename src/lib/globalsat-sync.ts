@@ -49,7 +49,7 @@ export interface GlobalSatSyncRepository {
     summary: GlobalSatSyncSummary,
     now: Date,
   ): Promise<void>;
-  fail(category: string, now: Date): Promise<void>;
+  fail(category: string, detail: string | null, now: Date): Promise<void>;
   release(): Promise<void>;
 }
 
@@ -132,10 +132,17 @@ const databaseRepository: GlobalSatSyncRepository = {
       },
     });
   },
-  async fail(category, now) {
+  async fail(category, detail, now) {
     await prisma.integrationState.update({
       where: { provider: PROVIDER },
-      data: { lastError: category, lastStartedAt: now },
+      data: {
+        lastError: category,
+        lastSummary: {
+          error: category,
+          detail,
+        } as unknown as Prisma.InputJsonValue,
+        lastStartedAt: now,
+      },
     });
   },
   async release() {
@@ -160,6 +167,15 @@ function configuredClient() {
 
 function errorCategory(error: unknown) {
   return error instanceof GlobalSatError ? error.code : "UNEXPECTED";
+}
+
+// Diagnostic detail for the ops database only (never in API responses):
+// single line, truncated, no tokens (error messages carry none).
+function errorDetail(error: unknown): string | null {
+  const text =
+    error instanceof Error ? error.message : String(error ?? "");
+  const singleLine = text.replace(/[\r\n\t]+/g, " ").trim();
+  return singleLine ? singleLine.slice(0, 280) : null;
 }
 
 type PendingFix = {
@@ -319,7 +335,7 @@ export async function syncGlobalSat(
     await repository.complete(nextCursor, summary, finishedAt);
     return summary;
   } catch (error) {
-    await repository.fail(errorCategory(error), now());
+    await repository.fail(errorCategory(error), errorDetail(error), now());
     throw error;
   } finally {
     await repository.release();

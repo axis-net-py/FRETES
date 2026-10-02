@@ -132,6 +132,7 @@ test("orders history with current position and advances cursor only after succes
 test("preserves cursor and records a sanitized category after failure", async () => {
   let completed = false;
   let failure = "";
+  let detail: string | null = null;
   const repository: GlobalSatSyncRepository = {
     acquire: async () => ({ acquired: true, cursor: BigInt(9) }),
     listActiveTrips: async () => [trip("AAM-E814")],
@@ -139,8 +140,9 @@ test("preserves cursor and records a sanitized category after failure", async ()
     complete: async () => {
       completed = true;
     },
-    fail: async (category) => {
+    fail: async (category, failureDetail) => {
       failure = category;
+      detail = failureDetail;
     },
     release: async () => undefined,
   };
@@ -154,6 +156,7 @@ test("preserves cursor and records a sanitized category after failure", async ()
   assert.equal(completed, false);
   assert.equal(failure, "UNEXPECTED");
   assert.doesNotMatch(failure, /private/);
+  assert.match(detail ?? "", /private upstream response/);
 });
 
 test("exposes only a sanitized GlobalSAT dashboard status", () => {

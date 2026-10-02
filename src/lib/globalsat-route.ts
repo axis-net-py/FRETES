@@ -28,6 +28,11 @@ export async function handleGlobalSatSync(
   } catch (error) {
     if (error instanceof GlobalSatError)
       return json({ error: "GlobalSAT temporariamente indisponível." }, 503);
+    // Server logs only; the public response stays generic.
+    console.error(
+      "[globalsat-sync] UNEXPECTED:",
+      error instanceof Error ? (error.stack || error.message) : String(error),
+    );
     return json({ error: "Não foi possível sincronizar a GlobalSAT." }, 500);
   }
 }
