@@ -83,41 +83,57 @@ export type EventMessage = {
   headline: string;
 };
 
-export function eventMessage(kind: string): EventMessage {
+// Event texts always carry the GPS event date ("acaba de" would lie when
+// a notification goes out late, e.g. after a sync backlog catch-up).
+export function formatEventAt(at?: Date): string {
+  if (!at || Number.isNaN(at.getTime())) return "";
+  const date = at.toLocaleDateString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+  });
+  const time = at.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  return ` em ${date} às ${time}`;
+}
+
+export function eventMessage(kind: string, at?: Date): EventMessage {
+  const when = formatEventAt(at);
   switch (kind) {
     case "DEPARTURE":
       return {
-        eventText: "acaba de sair do Porto de Paranaguá e iniciou o trajeto",
+        eventText: `saiu do Porto de Paranaguá e iniciou o trajeto${when}`,
         subject: "Saída do porto",
         headline: "Saída do porto confirmada pelo rastreamento.",
       };
     case "MULTILOG_ARRIVAL":
       return {
-        eventText: "acaba de chegar à Multilog",
+        eventText: `chegou à Multilog${when}`,
         subject: "Chegada à Multilog",
         headline: "Chegada à Multilog confirmada pelo rastreamento.",
       };
     case "CUSTOMS_ENTRY":
       return {
-        eventText: "acaba de entrar na aduana paraguaia",
+        eventText: `entrou na aduana paraguaia${when}`,
         subject: "Entrada na aduana",
         headline: "Entrada na aduana paraguaia confirmada pelo rastreamento.",
       };
     case "CUSTOMS_EXIT":
       return {
-        eventText: "acaba de ser liberado da aduana paraguaia e seguiu viagem",
+        eventText: `foi liberado da aduana paraguaia e seguiu viagem${when}`,
         subject: "Saída da aduana",
         headline: "Saída da aduana paraguaia confirmada pelo rastreamento.",
       };
     case "DESTINATION_ARRIVAL":
       return {
-        eventText: "acaba de chegar à cidade de destino",
+        eventText: `chegou à cidade de destino${when}`,
         subject: "Chegada ao destino",
         headline: "Chegada ao destino confirmada pelo rastreamento.",
       };
     case "DESTINATION_DEPARTURE":
       return {
-        eventText: "acaba de sair da cidade de destino",
+        eventText: `saiu da cidade de destino${when}`,
         subject: "Saída do destino",
         headline: "Saída do destino confirmada - frete concluído.",
       };
@@ -130,7 +146,7 @@ export function eventMessage(kind: string): EventMessage {
   }
 }
 
-// A carga [tal] acaba de [atualização], do motorista [tal] com caminhão
+// A carga [tal] [atualização com data], do motorista [tal] com caminhão
 // [tal] em direção do cliente [tal] com destino [tal], com previsão [tal].
 // parts: [cargo, event, crew, clientDest, eta, link]
 export function formatUpdateMessage(parts: string[]): string {

@@ -65,11 +65,11 @@ async function notifyCheckpoint(
 ): Promise<CheckpointOutcome> {
   const { gate, event, at, input, container: c } = args;
   const kind = notificationKindFor(gate.kind, event);
+  const msg = eventMessage(kind, at);
   const plates = [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ");
   const crewLine = c.driver?.name
     ? `${c.driver.name} com caminhão ${plates}`
     : plates;
-  const msg = eventMessage(kind);
   let link = "";
   const departedAt = at;
   let estimatedArrivalAt = c.estimatedArrivalAt;

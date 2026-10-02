@@ -5,6 +5,7 @@ import {
   journeyTarget,
   notificationKindFor,
   eventMessage,
+  formatEventAt,
   formatUpdateMessage,
   isContainerCode,
   portGateKindFor,
@@ -105,13 +106,24 @@ test("notification kinds and professional messages map per checkpoint", () => {
   assert.equal(notificationKindFor("CUSTOMS_EXIT", "EXIT"), "CUSTOMS_EXIT");
   assert.equal(notificationKindFor("CUSTOM", "ENTER"), "CUSTOM_ENTER");
   const departure = eventMessage("DEPARTURE");
-  assert.ok(departure.eventText.includes("acaba de sair do Porto de Paranaguá"));
+  assert.ok(departure.eventText.includes("saiu do Porto de Paranaguá"));
+  assert.ok(!departure.eventText.includes("acaba de"));
   assert.equal(departure.subject, "Saída do porto");
   const arrival = eventMessage("MULTILOG_ARRIVAL");
-  assert.ok(arrival.eventText.includes("acaba de chegar à Multilog"));
+  assert.ok(arrival.eventText.includes("chegou à Multilog"));
   assert.ok(arrival.headline.includes("Multilog"));
   const anonymous = eventMessage("CUSTOMS_EXIT");
   assert.ok(anonymous.eventText.includes("aduana paraguaia"));
+});
+
+test("event text carries the GPS event date so late notices stay truthful", () => {
+  const at = new Date("2026-10-01T22:07:02.000Z");
+  const arrival = eventMessage("MULTILOG_ARRIVAL", at);
+  assert.ok(arrival.eventText.includes("chegou à Multilog em 01/10/2026 às 19:07"));
+  const departure = eventMessage("DEPARTURE", new Date("2026-09-30T23:32:34.000Z"));
+  assert.ok(departure.eventText.includes("saiu do Porto de Paranaguá e iniciou o trajeto em 30/09/2026 às 20:32"));
+  assert.equal(formatEventAt(undefined), "");
+  assert.equal(formatEventAt(new Date("invalid")), "");
 });
 
 test("formatUpdateMessage leads with cargo state, no client greeting", () => {
