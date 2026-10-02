@@ -104,8 +104,18 @@ async function notifyCheckpoint(
       data: { gateEnteredAt: null, exitCandidateAt: null },
     });
   }
-  await tx.geofenceEvent.create({
-    data: {
+  // Idempotent: the ENTER branch upserts the same row just before calling
+  // here, and replays/retries must never violate the unique event key.
+  await tx.geofenceEvent.upsert({
+    where: {
+      geofenceId_containerId_type: {
+        geofenceId: gate.id,
+        containerId: c.id,
+        type: event,
+      },
+    },
+    update: {},
+    create: {
       geofenceId: gate.id,
       containerId: c.id,
       type: event,
@@ -382,8 +392,18 @@ export async function processPosition(
           input,
           container: c,
         });
-      await tx.geofenceEvent.create({
-        data: {
+      // Idempotent for the same reason: retries must not violate the
+      // unique (gate, freight, type) key.
+      await tx.geofenceEvent.upsert({
+        where: {
+          geofenceId_containerId_type: {
+            geofenceId: gate.id,
+            containerId: c.id,
+            type: "EXIT",
+          },
+        },
+        update: {},
+        create: {
           geofenceId: gate.id,
           containerId: c.id,
           type: "EXIT",

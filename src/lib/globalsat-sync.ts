@@ -304,17 +304,27 @@ export async function syncGlobalSat(
           duplicatePositions += 1;
           continue;
         }
-        await processor(
-          {
-            driverId: trip.driverId,
-            containerId: trip.id,
-            latitude: fix.latitude,
-            longitude: fix.longitude,
-            accuracyM: 50,
-            recordedAt: fix.recordedAt.toISOString(),
-          },
-          { source: "GLOBALSAT", externalId: fix.externalId },
-        );
+        // One poisoned fix must not blind the whole fleet: log it and
+        // keep processing the remaining fixes.
+        try {
+          await processor(
+            {
+              driverId: trip.driverId,
+              containerId: trip.id,
+              latitude: fix.latitude,
+              longitude: fix.longitude,
+              accuracyM: 50,
+              recordedAt: fix.recordedAt.toISOString(),
+            },
+            { source: "GLOBALSAT", externalId: fix.externalId },
+          );
+        } catch (error) {
+          console.error(
+            `[globalsat-sync] skipping fix ${fix.externalId} for trip ${trip.id}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+          continue;
+        }
         processedPositions += 1;
       }
     }
