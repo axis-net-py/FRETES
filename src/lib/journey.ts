@@ -46,19 +46,18 @@ export function journeyTarget<T extends JourneyGate>(
   events: JourneyEvent[],
   code?: string | null,
 ): T | null {
-  const kinds = new Set(gates.map((gate) => gate.kind));
-  const bothPorts = kinds.has("PORT_EXIT") && kinds.has("APPA");
-  if (code === undefined || !bothPorts)
-    return gates.find((gate) => !gateCompleted(gate, events)) || null;
-  // The freight document selects the port gate (TPC vs APPA) and the
-  // journey always starts there, regardless of creation order; the
-  // remaining gates follow in creation order.
   const wanted = portGateKindFor(code);
+  const portGates = gates.filter(
+    (gate) => gate.kind === "PORT_EXIT" || gate.kind === "APPA",
+  );
+  const nonPortGates = gates.filter(
+    (gate) => gate.kind !== "PORT_EXIT" && gate.kind !== "APPA",
+  );
+  const prioritizedPort =
+    portGates.find((g) => g.kind === wanted) || portGates[0];
   const ordered = [
-    ...gates.filter((gate) => gate.kind === wanted),
-    ...gates.filter(
-      (gate) => gate.kind !== wanted && gate.kind !== "PORT_EXIT" && gate.kind !== "APPA",
-    ),
+    ...(prioritizedPort ? [prioritizedPort] : []),
+    ...nonPortGates,
   ];
   return ordered.find((gate) => !gateCompleted(gate, events)) || null;
 }

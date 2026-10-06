@@ -76,14 +76,7 @@ export async function dispatchNotification(
     !["PENDING", "FAILED", "UNCONFIGURED", "NO_CONSENT"].includes(n.status)
   )
     return n;
-  if (
-    ![
-      "DEPARTURE",
-      "MULTILOG_ARRIVAL",
-      "CUSTOMS_ENTRY",
-      "CUSTOMS_EXIT",
-    ].includes(n.kind)
-  )
+  if (n.kind === "ARRIVAL")
     return prisma.notification.update({
       where: { id },
       data: {
@@ -91,6 +84,36 @@ export async function dispatchNotification(
         error: "Aviso de chegada substituído pelo aviso de saída do porto.",
       },
     });
+  const emailConfig = emailOpsConfig();
+  if (emailConfig) {
+    try {
+      await sendOpsEmail(
+        emailConfig,
+        departureEmail(
+          {
+            code: n.container.code,
+            origin: n.container.origin,
+            destination: n.container.destination,
+            departedAt: n.container.departedAt,
+            truckPlate: n.container.truckPlate,
+            trailerPlate: n.container.trailerPlate,
+            cargoDescription: n.container.cargoDescription,
+            client: { name: n.container.client.name },
+            driver: n.container.driver ? { name: n.container.driver.name } : null,
+            parameters: n.parameters,
+          },
+          n.kind,
+        ),
+        deps.mailTransport,
+      );
+    } catch (error) {
+      console.error(
+        "[notifications] Ops email failed:",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
   const {
     META_WHATSAPP_TOKEN: token,
     META_WHATSAPP_PHONE_NUMBER_ID: phone,
@@ -108,8 +131,6 @@ export async function dispatchNotification(
   const opsList = whatsappOpsNumbers();
   if (metaReady && (n.container.client.consent || opsList.length > 0))
     return dispatchWhatsApp(n, { token: token!, phone: phone!, version: version!, template: template! });
-  const emailConfig = emailOpsConfig();
-  // Ops email goes to fixed internal addresses, so it never needs client consent.
   if (emailConfig) return dispatchEmail(n, emailConfig, deps.mailTransport);
   if (!n.container.client.consent && !opsList.length)
     return prisma.notification.update({
@@ -136,6 +157,7 @@ type DispatchableNotification = {
     departedAt: Date | null;
     truckPlate: string | null;
     trailerPlate: string | null;
+    cargoDescription?: string | null;
     client: { name: string; consent: boolean };
     driver: { name: string } | null;
   };

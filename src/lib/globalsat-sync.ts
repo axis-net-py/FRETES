@@ -18,8 +18,9 @@ const MAX_PAGES = 2;
 export type ActiveTrip = {
   id: string;
   driverId: string;
-  geofenceId: string;
+  geofenceId?: string | null;
   truckPlate: string | null;
+  trailerPlate?: string | null;
   driver: { plate: string } | null;
 };
 
@@ -65,9 +66,15 @@ export function matchActiveTrips(
   const matches: Array<{ trip: ActiveTrip; target: GlobalSatTarget }> = [];
   const unmatched = new Set<string>();
   for (const trip of trips) {
-    const plate = normalizePlate(trip.truckPlate || trip.driver?.plate || "");
+    const truck = normalizePlate(trip.truckPlate || "");
+    const driver = normalizePlate(trip.driver?.plate || "");
+    const trailer = normalizePlate(trip.trailerPlate || "");
+    const plate = truck || driver || trailer;
     if (!plate) continue;
-    const target = targetsByPlate.get(plate);
+    const target =
+      (truck && targetsByPlate.get(truck)) ||
+      (driver && targetsByPlate.get(driver)) ||
+      (trailer && targetsByPlate.get(trailer));
     if (target) matches.push({ trip, target });
     else unmatched.add(plate);
   }
@@ -100,18 +107,29 @@ const databaseRepository: GlobalSatSyncRepository = {
       where: {
         status: { in: ["EM_TRANSITO", "CHEGADA_PORTAO", "A_CAMINHO_DESTINO"] },
         driverId: { not: null },
-        geofenceId: { not: null },
       },
       select: {
         id: true,
         driverId: true,
         geofenceId: true,
         truckPlate: true,
+        trailerPlate: true,
         driver: { select: { plate: true } },
       },
     });
-    return rows.filter(
-      (row): row is ActiveTrip => !!row.driverId && !!row.geofenceId,
+    return rows.flatMap((row): ActiveTrip[] =>
+      row.driverId
+        ? [
+            {
+              id: row.id,
+              driverId: row.driverId,
+              geofenceId: row.geofenceId,
+              truckPlate: row.truckPlate,
+              trailerPlate: row.trailerPlate,
+              driver: row.driver,
+            },
+          ]
+        : [],
     );
   },
   async hasExternalPosition(externalId) {

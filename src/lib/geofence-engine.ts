@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import { distanceMeters } from "./geo";
 import { reliableInside, reliableOutside, returningToGate } from "./geofence-policy";
 import {
   journeyTarget,
@@ -23,7 +24,7 @@ type CheckpointContainer = {
   truckPlate: string | null;
   trailerPlate: string | null;
   seal: string | null;
-  cargoDescription: string | null;
+  cargoDescription?: string | null;
 };
 
 type CheckpointOutcome = {
@@ -343,10 +344,12 @@ export async function processPosition(
       const elapsed = c.exitCandidateAt
         ? fixAt.getTime() - c.exitCandidateAt.getTime()
         : 0;
+      const maxGapBetweenFixes =
+        source === "GLOBALSAT" ? 4 * 3600 * 1000 : 120000;
       if (
         !c.exitCandidateAt ||
         !c.lastGeofenceFixAt ||
-        fixAt.getTime() - c.lastGeofenceFixAt.getTime() > 120000
+        fixAt.getTime() - c.lastGeofenceFixAt.getTime() > maxGapBetweenFixes
       ) {
         await tx.container.update({
           where: { id: c.id },
@@ -354,13 +357,25 @@ export async function processPosition(
         });
         return null;
       }
-      if (elapsed < 30000) {
+      const isConfirmedExit =
+        elapsed >= 30000 ||
+        (source === "GLOBALSAT" &&
+          fixAt.getTime() - c.gateEnteredAt.getTime() >= 2 * 60 * 1000 &&
+          distanceMeters(input, gate) - (input.accuracyM ?? 15) >=
+            gate.radiusM + 150);
+      if (!isConfirmedExit) {
         await tx.container.update({ where: { id: c.id }, data: common });
         return null;
       }
       // The truck must have actually operated inside the gate (queue,
       // loading, paperwork): drive-by pass-throughs never confirm.
-      if (fixAt.getTime() - c.gateEnteredAt.getTime() < ENTERED_DWELL_MS) {
+      const isPort = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
+      const requiredDwellMs = isPort
+        ? source === "GLOBALSAT"
+          ? 2 * 60 * 1000
+          : ENTERED_DWELL_MS
+        : 30000;
+      if (fixAt.getTime() - c.gateEnteredAt.getTime() < requiredDwellMs) {
         await tx.container.update({ where: { id: c.id }, data: common });
         return null;
       }

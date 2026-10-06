@@ -186,3 +186,80 @@ test("dispatch prefers email-ops without client consent when WhatsApp is down", 
   assert.equal(result.providerRef, "<ops-1>");
   assert.ok(updates.some((update) => update.status === "ACCEPTED"));
 });
+
+test("dispatch dispatches ops email even when WhatsApp is configured and active", async (t) => {
+  process.env.WHATSAPP_PROVIDER = "meta";
+  process.env.META_WHATSAPP_TOKEN = "fixture-token";
+  process.env.META_WHATSAPP_PHONE_NUMBER_ID = "123";
+  process.env.META_GRAPH_VERSION = "v22.0";
+  process.env.META_WHATSAPP_DEPARTURE_TEMPLATE = "frete_saida_porto_v2";
+  process.env.SMTP_HOST = "smtp.gmail.com";
+  process.env.SMTP_USER = "ops@example.com";
+  process.env.SMTP_PASS = "secret";
+  process.env.NOTIFICATION_EMAILS = "ops@example.com";
+
+  let emailSent = false;
+  const mockFetch = t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response(JSON.stringify({ messages: [{ id: "wamid-test" }] })),
+  );
+
+  const originalFind = prisma.notification.findUnique;
+  const originalUpdate = prisma.notification.update;
+  const originalUpdateMany = prisma.notification.updateMany;
+  const fixture = {
+    id: "n-wa-email",
+    status: "PENDING",
+    kind: "DESTINATION_ARRIVAL",
+    to: "+595981111111",
+    parameters: JSON.stringify(["C", "CHEGADA", "x", "D", "E", "L"]),
+    container: {
+      code: "CODE",
+      origin: "O",
+      destination: "D",
+      departedAt: null,
+      truckPlate: "ABC1234",
+      trailerPlate: null,
+      client: { name: "C", consent: true },
+      driver: null,
+    },
+  };
+
+  prisma.notification.findUnique = (async () => fixture) as unknown as typeof originalFind;
+  prisma.notification.updateMany = (async () => ({ count: 1 })) as unknown as typeof originalUpdateMany;
+  prisma.notification.update = (async ({ data }: { data: object }) => ({
+    ...fixture,
+    ...data,
+  })) as unknown as typeof originalUpdate;
+
+  t.after(() => {
+    mockFetch.mock.restore();
+    prisma.notification.findUnique = originalFind;
+    prisma.notification.update = originalUpdate;
+    prisma.notification.updateMany = originalUpdateMany;
+    delete process.env.WHATSAPP_PROVIDER;
+    delete process.env.META_WHATSAPP_TOKEN;
+    delete process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+    delete process.env.META_GRAPH_VERSION;
+    delete process.env.META_WHATSAPP_DEPARTURE_TEMPLATE;
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+    delete process.env.NOTIFICATION_EMAILS;
+  });
+
+  const result = (await dispatchNotification("n-wa-email", {
+    mailTransport: {
+      sendMail: async () => {
+        emailSent = true;
+        return { messageId: "<ops-dual>" };
+      },
+    },
+  })) as { status: string; provider: string };
+
+  assert.equal(emailSent, true, "Ops email must be sent even when WhatsApp is configured");
+  assert.equal(result.status, "ACCEPTED");
+  assert.equal(result.provider, "meta");
+});

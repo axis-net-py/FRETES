@@ -38,9 +38,53 @@ export async function POST(req: Request) {
             normalizeName(g.name).includes("PARANAGUA")),
       );
       if (existing) return { gate: existing, created: false };
+      let { kind, notifyOnEnter, notifyOnExit } = p.data;
+      if (kind === "CHECKPOINT") {
+        if (name.includes("PARANAGUA") || name.includes("TPC")) {
+          kind = "PORT_EXIT";
+          notifyOnEnter = false;
+          notifyOnExit = true;
+        } else if (name.includes("APPA")) {
+          kind = "APPA";
+          notifyOnEnter = false;
+          notifyOnExit = true;
+        } else if (name.includes("MULTILOG")) {
+          kind = "MULTILOG";
+          notifyOnEnter = true;
+          notifyOnExit = false;
+        } else if (
+          name.includes("ADUANA") ||
+          name.includes("CUSTOMS") ||
+          name.includes("FRONTEIRA") ||
+          name.includes("PONTE")
+        ) {
+          if (name.includes("SAIDA") || name.includes("LIBERACAO")) {
+            kind = "CUSTOMS_EXIT";
+            notifyOnEnter = false;
+            notifyOnExit = true;
+          } else {
+            kind = "CUSTOMS_ENTRY";
+            notifyOnEnter = true;
+            notifyOnExit = false;
+          }
+        } else if (name.includes("DESTINO") || name.includes("ENTREGA")) {
+          kind = "DESTINATION";
+          notifyOnEnter = true;
+          notifyOnExit = false;
+        } else if (name.includes("SAIDA")) {
+          notifyOnEnter = false;
+          notifyOnExit = true;
+        }
+      }
       return {
         gate: await tx.geofence.create({
-          data: { ...p.data, status: "CHEGADA_PORTAO" },
+          data: {
+            ...p.data,
+            kind,
+            notifyOnEnter,
+            notifyOnExit,
+            status: "CHEGADA_PORTAO",
+          },
         }),
         created: true,
       };
