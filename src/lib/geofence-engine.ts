@@ -22,6 +22,8 @@ type CheckpointContainer = {
   geofenceId?: string | null;
   transitHours: number | null;
   estimatedArrivalAt: Date | null;
+  gateEnteredAt?: Date | null;
+  exitCandidateAt?: Date | null;
   client: { name: string; whatsapp: string; consent: boolean };
   driver: { name: string } | null;
   truckPlate: string | null;
