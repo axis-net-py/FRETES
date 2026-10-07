@@ -115,11 +115,21 @@ async function notifyCheckpoint(
         exitCandidateAt: null,
       },
     });
-  } else {
+  } else if (event === "EXIT") {
     link = await latestTrackingLink(tx, c.id);
     await tx.container.update({
       where: { id: c.id },
       data: { gateEnteredAt: null, exitCandidateAt: null },
+    });
+  } else {
+    // ENTER: preserve gateEnteredAt so the truck stays recorded as inside the gate
+    link = await latestTrackingLink(tx, c.id);
+    await tx.container.update({
+      where: { id: c.id },
+      data: {
+        gateEnteredAt: c.gateEnteredAt || at,
+        exitCandidateAt: null,
+      },
     });
   }
   // Idempotent: the ENTER branch upserts the same row just before calling
@@ -169,6 +179,33 @@ async function notifyCheckpoint(
   ];
   const messageBody = formatUpdateMessage(parameters);
 
+  const isPortGate = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
+  const nextStatus = isDestinationExit
+    ? "ENTREGUE"
+    : isPortDeparture
+      ? "A_CAMINHO_DESTINO"
+      : isPortGate
+        ? "CHEGADA_PORTAO"
+        : c.status;
+
+  // DEDUPLICATION: Ensure exactly one notification per event kind per freight
+  const alreadyNotified = await tx.notification.findFirst({
+    where: {
+      containerId: c.id,
+      kind,
+    },
+    select: { id: true },
+  });
+  if (alreadyNotified) {
+    return {
+      status: nextStatus,
+      gate,
+      containerId: c.id,
+      code: c.code,
+      notificationId: null,
+    };
+  }
+
   const n = await tx.notification.create({
     data: {
       containerId: c.id,
@@ -185,14 +222,6 @@ async function notifyCheckpoint(
           : "WhatsApp ou autorização do cliente pendente.",
     },
   });
-  const isPortGate = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
-  const nextStatus = isDestinationExit
-    ? "ENTREGUE"
-    : isPortDeparture
-      ? "A_CAMINHO_DESTINO"
-      : isPortGate
-        ? "CHEGADA_PORTAO"
-        : c.status;
   return {
     status: nextStatus,
     gate,
@@ -358,7 +387,10 @@ export async function processPosition(
               : {}),
           },
         });
-        if (!c.gateEnteredAt) {
+        const alreadyEntered = journeyEvents.some(
+          (e) => e.geofenceId === gate.id && e.type === "ENTER",
+        );
+        if (!c.gateEnteredAt && !alreadyEntered) {
           await tx.geofenceEvent.upsert({
             where: {
               geofenceId_containerId_type: {
