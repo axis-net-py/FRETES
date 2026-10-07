@@ -273,10 +273,16 @@ export async function sendTemplateMessage(
     },
   );
   const payload = await response.json();
-  if (!response.ok || !payload.messages?.[0]?.id)
+  if (!response.ok || !payload.messages?.[0]?.id) {
+    const code = payload.error?.code || response.status;
+    const msg =
+      payload.error?.message ||
+      payload.error?.error_user_msg ||
+      (typeof payload.error === "object" ? JSON.stringify(payload.error) : "Erro da Meta");
     throw new Error(
-      `Meta recusou para ${to} (HTTP ${response.status}; c�digo ${payload.error?.code || "indispon�vel"}).`,
+      `Meta recusou para ${to} (HTTP ${response.status}; código ${code}: ${msg}).`,
     );
+  }
   return payload.messages[0].id as string;
 }
 

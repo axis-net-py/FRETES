@@ -18,7 +18,7 @@ export async function handleGlobalSatSync(
 ) {
   if (
     options.requireSecret &&
-    !validSyncSecret(request.headers.get("authorization"))
+    !validSyncSecret(request)
   )
     return json({ error: "Não autorizado." }, 401);
 

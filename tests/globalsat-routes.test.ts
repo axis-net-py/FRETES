@@ -12,6 +12,22 @@ test("validates the scheduled caller secret without length leakage", () => {
   assert.equal(validSyncSecret(null), false);
   assert.equal(validSyncSecret("Bearer short"), false);
   assert.equal(validSyncSecret(`Bearer ${secret}x`), false);
+  assert.equal(
+    validSyncSecret(new Request(`https://example.test/api/cron?secret=${secret}`)),
+    true,
+  );
+  assert.equal(
+    validSyncSecret(
+      new Request("https://example.test/api/cron", {
+        headers: { "x-sync-secret": secret },
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    validSyncSecret(new Request("https://example.test/api/cron?secret=wrong")),
+    false,
+  );
 });
 
 test("rejects an unauthorized cron request before synchronization", async () => {
