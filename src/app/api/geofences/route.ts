@@ -7,7 +7,7 @@ const schema = z.object({
   name: z.string().trim().min(2).max(120),
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),
-  radiusM: z.number().int().min(50).max(2000),
+  radiusM: z.number().int().min(50).max(50000),
   kind: z.string().trim().toUpperCase().max(30).default("CHECKPOINT"),
   notifyOnEnter: z.boolean().default(true),
   notifyOnExit: z.boolean().default(false),
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const p = schema.safeParse(await req.json().catch(() => null));
   if (!p.success)
     return NextResponse.json(
-      { error: "Confira nome, coordenadas e raio entre 50 e 2.000 m." },
+      { error: "Confira nome, coordenadas e raio entre 50 e 50.000 m." },
       { status: 400 },
     );
   try {
@@ -39,7 +39,10 @@ export async function POST(req: Request) {
       );
       if (existing) return { gate: existing, created: false };
       let { kind, notifyOnEnter, notifyOnExit } = p.data;
-      if (kind === "CHECKPOINT") {
+      if (kind === "DESTINATION") {
+        notifyOnEnter = true;
+        notifyOnExit = true;
+      } else if (kind === "CHECKPOINT") {
         if (name.includes("PARANAGUA") || name.includes("TPC")) {
           kind = "PORT_EXIT";
           notifyOnEnter = false;
@@ -70,7 +73,7 @@ export async function POST(req: Request) {
         } else if (name.includes("DESTINO") || name.includes("ENTREGA")) {
           kind = "DESTINATION";
           notifyOnEnter = true;
-          notifyOnExit = false;
+          notifyOnExit = true;
         } else if (name.includes("SAIDA")) {
           notifyOnEnter = false;
           notifyOnExit = true;

@@ -8,7 +8,7 @@ const updateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
-  radiusM: z.number().int().min(50).max(2000).optional(),
+  radiusM: z.number().int().min(50).max(50000).optional(),
   active: z.boolean().optional(),
 });
 

@@ -1,5 +1,6 @@
 export type JourneyGate = {
   id: string;
+  name?: string;
   kind: string;
   notifyOnEnter: boolean;
   notifyOnExit: boolean;
@@ -36,29 +37,83 @@ export function portGateKindFor(code: string | null | undefined): string {
   return isContainerCode(code) ? "PORT_EXIT" : "APPA";
 }
 
-// The journey is every active gate in creation order; the target is the
-// first incomplete one. Out-of-order arrivals still record, but the
-// engine only evaluates the target, so overlapping zones never collide.
-// When both port gates exist, the irrelevant one for this cargo is
-// skipped; with a single port gate it always applies (legacy setups).
-export function journeyTarget<T extends JourneyGate>(
+export function normalizeDestinationText(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function destinationGateMatches(
+  gate: JourneyGate,
+  destination?: string | null,
+  geofenceId?: string | null,
+): boolean {
+  if (geofenceId && gate.id === geofenceId) return true;
+  if (!destination) return false;
+  const normDest = normalizeDestinationText(destination);
+  if (!normDest) return false;
+
+  const rawName = (gate.name || "").replace(
+    /\b(destino|checkpoint|gate|portao|area|zona|cidade)\b/gi,
+    "",
+  );
+  const normGate = normalizeDestinationText(rawName);
+  if (!normGate || normGate.length < 3) return false;
+
+  return normDest.includes(normGate) || normGate.includes(normDest);
+}
+
+// Builds the complete, ordered list of gates for a specific freight:
+// 1. Appropriate port gate (TPC for container, APPA for loose cargo)
+// 2. Intermediate checkpoint gates (Multilog, Customs, etc.)
+// 3. Destination gate matching the container's destination city
+export function journeyGatesFor<T extends JourneyGate>(
   gates: T[],
-  events: JourneyEvent[],
   code?: string | null,
-): T | null {
+  destination?: string | null,
+  geofenceId?: string | null,
+): T[] {
   const wanted = portGateKindFor(code);
   const portGates = gates.filter(
     (gate) => gate.kind === "PORT_EXIT" || gate.kind === "APPA",
   );
-  const nonPortGates = gates.filter(
-    (gate) => gate.kind !== "PORT_EXIT" && gate.kind !== "APPA",
+  const intermediateGates = gates.filter(
+    (gate) =>
+      gate.kind !== "PORT_EXIT" &&
+      gate.kind !== "APPA" &&
+      gate.kind !== "DESTINATION",
+  );
+  const destinationGates = gates.filter(
+    (gate) =>
+      gate.kind === "DESTINATION" &&
+      destinationGateMatches(gate, destination, geofenceId),
   );
   const prioritizedPort =
     portGates.find((g) => g.kind === wanted) || portGates[0];
-  const ordered = [
+  const matchingDestination = destinationGates[0];
+
+  return [
     ...(prioritizedPort ? [prioritizedPort] : []),
-    ...nonPortGates,
+    ...intermediateGates,
+    ...(matchingDestination ? [matchingDestination] : []),
   ];
+}
+
+// The journey is every active gate in route order; the target is the
+// first incomplete one.
+export function journeyTarget<T extends JourneyGate>(
+  gates: T[],
+  events: JourneyEvent[],
+  code?: string | null,
+  destination?: string | null,
+  geofenceId?: string | null,
+): T | null {
+  const ordered = journeyGatesFor(gates, code, destination, geofenceId);
   return ordered.find((gate) => !gateCompleted(gate, events)) || null;
 }
 

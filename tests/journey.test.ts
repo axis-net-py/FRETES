@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   gateCompleted,
+  destinationGateMatches,
+  journeyGatesFor,
   journeyTarget,
   notificationKindFor,
   eventMessage,
@@ -156,3 +158,142 @@ test("loose cargo message uses the freight identifier, plates stay with the crew
   assert.ok(!text.includes("a carga AARG801"));
   assert.ok(text.includes("MARCOS TASSI com caminhão AARG801 / AAOA125"));
 });
+
+test("destination gate matching identifies destination city and ignores non-matching gates", () => {
+  const santaRitaGate: JourneyGate = {
+    id: "sr",
+    name: "Santa Rita · Destino",
+    kind: "DESTINATION",
+    notifyOnEnter: true,
+    notifyOnExit: true,
+  };
+  const cdeGate: JourneyGate = {
+    id: "cde",
+    name: "Ciudad del Este · Destino",
+    kind: "DESTINATION",
+    notifyOnEnter: true,
+    notifyOnExit: true,
+  };
+  const hernandariasGate: JourneyGate = {
+    id: "hern",
+    name: "Hernandarias · Destino",
+    kind: "DESTINATION",
+    notifyOnEnter: true,
+    notifyOnExit: true,
+  };
+  const katueteGate: JourneyGate = {
+    id: "kat",
+    name: "Katueté · Destino",
+    kind: "DESTINATION",
+    notifyOnEnter: true,
+    notifyOnExit: true,
+  };
+  const tirolGate: JourneyGate = {
+    id: "tirol",
+    name: "Colonia Tirol · Destino",
+    kind: "DESTINATION",
+    notifyOnEnter: true,
+    notifyOnExit: true,
+  };
+
+  assert.equal(
+    destinationGateMatches(santaRitaGate, "SANTA RITA - PY"),
+    true,
+  );
+  assert.equal(
+    destinationGateMatches(santaRitaGate, "KATUETE - PARAGUAY"),
+    false,
+  );
+  assert.equal(
+    destinationGateMatches(
+      cdeGate,
+      "SHOPPING INTERNATIONAL SALA 6ª 16, CIUDAD DEL ESTE, PY",
+    ),
+    true,
+  );
+  assert.equal(
+    destinationGateMatches(
+      hernandariasGate,
+      "CARRETERA RUTA PY 07 - PARQUE INDUSTRIAL SANTA MONICA, MANZANA 4, LOTE 23 - HERNANDARIAS - PARAGUAY",
+    ),
+    true,
+  );
+  assert.equal(
+    destinationGateMatches(katueteGate, "KATUETE - PARAGUAY"),
+    true,
+  );
+  assert.equal(
+    destinationGateMatches(
+      tirolGate,
+      "COLONIA TIROL - ITAPUA - PARAGUAY",
+    ),
+    true,
+  );
+  assert.equal(
+    destinationGateMatches(santaRitaGate, undefined, "sr"),
+    true,
+  );
+});
+
+test("journey targets matching destination gate after customs exit, completing on destination exit", () => {
+  const allGates: JourneyGate[] = [
+    { id: "port", name: "Paranaguá", kind: "PORT_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "multi", name: "Multilog", kind: "MULTILOG", notifyOnEnter: true, notifyOnExit: false },
+    { id: "entry", name: "Aduana Entrada", kind: "CUSTOMS_ENTRY", notifyOnEnter: true, notifyOnExit: false },
+    { id: "exit", name: "Aduana Saída", kind: "CUSTOMS_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "sr", name: "Santa Rita · Destino", kind: "DESTINATION", notifyOnEnter: true, notifyOnExit: true },
+    { id: "kat", name: "Katueté · Destino", kind: "DESTINATION", notifyOnEnter: true, notifyOnExit: true },
+  ];
+
+  // For a freight destined to Katueté, only the Katueté destination gate should be part of the route
+  const gatesForKatuete = journeyGatesFor(allGates, "PCIU1234567", "KATUETE - PARAGUAY");
+  assert.equal(gatesForKatuete.map((g) => g.id).join(","), "port,multi,entry,exit,kat");
+
+  // Before customs exit, target is port/multi/customs
+  const events: JourneyEvent[] = [
+    { geofenceId: "port", type: "EXIT" },
+    { geofenceId: "multi", type: "ENTER" },
+    { geofenceId: "entry", type: "ENTER" },
+  ];
+  assert.equal(
+    journeyTarget(allGates, events, "PCIU1234567", "KATUETE - PARAGUAY")?.id,
+    "exit",
+  );
+
+  // After customs exit, target is Katueté destination gate!
+  events.push({ geofenceId: "exit", type: "EXIT" });
+  assert.equal(
+    journeyTarget(allGates, events, "PCIU1234567", "KATUETE - PARAGUAY")?.id,
+    "kat",
+  );
+
+  // After destination entry, gate is not completed yet because notifyOnExit is true
+  events.push({ geofenceId: "kat", type: "ENTER" });
+  assert.equal(
+    journeyTarget(allGates, events, "PCIU1234567", "KATUETE - PARAGUAY")?.id,
+    "kat",
+  );
+
+  // After destination exit, journey is 100% completed!
+  events.push({ geofenceId: "kat", type: "EXIT" });
+  assert.equal(
+    journeyTarget(allGates, events, "PCIU1234567", "KATUETE - PARAGUAY"),
+    null,
+  );
+});
+
+test("destination arrival and departure notifications format correctly", () => {
+  assert.equal(notificationKindFor("DESTINATION", "ENTER"), "DESTINATION_ARRIVAL");
+  assert.equal(notificationKindFor("DESTINATION", "EXIT"), "DESTINATION_DEPARTURE");
+
+  const at = new Date("2026-10-07T14:30:00.000Z");
+  const arrival = eventMessage("DESTINATION_ARRIVAL", at);
+  assert.ok(arrival.eventText.includes("chegou à cidade de destino"));
+  assert.equal(arrival.subject, "Chegada ao destino");
+
+  const departure = eventMessage("DESTINATION_DEPARTURE", at);
+  assert.ok(departure.eventText.includes("saiu da cidade de destino"));
+  assert.equal(departure.subject, "Saída do destino");
+  assert.ok(departure.headline.includes("frete concluído"));
+});
+

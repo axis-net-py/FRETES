@@ -3,6 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { distanceMeters } from "./geo";
 import { reliableInside, reliableOutside, returningToGate } from "./geofence-policy";
 import {
+  gateCompleted,
+  journeyGatesFor,
   journeyTarget,
   notificationKindFor,
   eventMessage,
@@ -17,6 +19,7 @@ type CheckpointContainer = {
   code: string;
   status: string;
   destination: string | null;
+  geofenceId?: string | null;
   transitHours: number | null;
   estimatedArrivalAt: Date | null;
   client: { name: string; whatsapp: string; consent: boolean };
@@ -78,6 +81,8 @@ async function notifyCheckpoint(
   // confirm departure the same way.
   const isPortDeparture =
     (gate.kind === "PORT_EXIT" || gate.kind === "APPA") && event === "EXIT";
+  const isDestinationExit =
+    gate.kind === "DESTINATION" && event === "EXIT";
   if (isPortDeparture) {
     estimatedArrivalAt = c.transitHours
       ? new Date(at.getTime() + c.transitHours * 3600000)
@@ -96,6 +101,18 @@ async function notifyCheckpoint(
           .update(token)
           .digest("hex"),
         customerTrackingExpiresAt: new Date(Date.now() + 30 * 86400000),
+      },
+    });
+  } else if (isDestinationExit) {
+    link = await latestTrackingLink(tx, c.id);
+    await tx.container.update({
+      where: { id: c.id },
+      data: {
+        status: "ENTREGUE",
+        trackingTokenHash: null,
+        trackingExpiresAt: null,
+        gateEnteredAt: null,
+        exitCandidateAt: null,
       },
     });
   } else {
@@ -169,12 +186,15 @@ async function notifyCheckpoint(
     },
   });
   const isPortGate = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
-  return {
-    status: isPortDeparture
+  const nextStatus = isDestinationExit
+    ? "ENTREGUE"
+    : isPortDeparture
       ? "A_CAMINHO_DESTINO"
       : isPortGate
         ? "CHEGADA_PORTAO"
-        : c.status,
+        : c.status;
+  return {
+    status: nextStatus,
     gate,
     containerId: c.id,
     code: c.code,
@@ -252,9 +272,58 @@ export async function processPosition(
         where: { containerId: c.id },
         select: { geofenceId: true, type: true },
       });
-      // The freight document selects the port gate: TPC for containers,
-      // APPA for loose cargo.
-      const gate = journeyTarget(gates, journeyEvents, c.code);
+      const journeyGates = journeyGatesFor(
+        gates,
+        c.code,
+        c.destination,
+        c.geofenceId,
+      );
+      if (!journeyGates.length) return null;
+
+      const evaluationNow =
+        source === "GLOBALSAT" ? fixAt.getTime() + 30000 : Date.now();
+
+      // If the truck is currently inside a gate, continue evaluating that gate:
+      let gate: (typeof gates)[number] | null = null;
+      if (c.gateEnteredAt) {
+        const lastEnter = await tx.geofenceEvent.findFirst({
+          where: { containerId: c.id, type: "ENTER" },
+          orderBy: { createdAt: "desc" },
+        });
+        gate =
+          journeyGates.find((g) => g.id === lastEnter?.geofenceId) ||
+          journeyTarget(
+            gates,
+            journeyEvents,
+            c.code,
+            c.destination,
+            c.geofenceId,
+          );
+      }
+
+      if (!gate) {
+        const target = journeyTarget(
+          gates,
+          journeyEvents,
+          c.code,
+          c.destination,
+          c.geofenceId,
+        );
+        if (target && reliableInside(input, target, evaluationNow)) {
+          gate = target;
+        } else if (target) {
+          const targetIdx = journeyGates.findIndex((g) => g.id === target.id);
+          const downstream =
+            targetIdx >= 0 ? journeyGates.slice(targetIdx + 1) : [];
+          const downstreamInside = downstream.find(
+            (g) =>
+              !gateCompleted(g, journeyEvents) &&
+              reliableInside(input, g, evaluationNow),
+          );
+          gate = downstreamInside || target;
+        }
+      }
+
       if (!options.replay) {
         await tx.position.create({
           data: {
@@ -273,11 +342,6 @@ export async function processPosition(
         });
         return null;
       }
-      // Trusted sources (GlobalSAT) arrive in delayed batches: evaluate the
-      // fix at GPS time so history is judged, not the processing delay.
-      // Device fixes keep wall-clock freshness (live GPS required).
-      const evaluationNow =
-        source === "GLOBALSAT" ? fixAt.getTime() + 30000 : Date.now();
       const inside = reliableInside(input, gate, evaluationNow),
         outside = reliableOutside(input, gate, evaluationNow);
       const common = { lastGeofenceFixAt: fixAt };
@@ -427,12 +491,25 @@ export async function processPosition(
           createdAt: c.exitCandidateAt,
         },
       });
+      const isDestinationExit = gate.kind === "DESTINATION";
+      const nextStatus = isDestinationExit ? "ENTREGUE" : c.status;
       await tx.container.update({
         where: { id: c.id },
-        data: { ...common, gateEnteredAt: null, exitCandidateAt: null },
+        data: {
+          ...common,
+          ...(isDestinationExit
+            ? {
+                status: "ENTREGUE",
+                trackingTokenHash: null,
+                trackingExpiresAt: null,
+              }
+            : {}),
+          gateEnteredAt: null,
+          exitCandidateAt: null,
+        },
       });
       return {
-        status: c.status,
+        status: nextStatus,
         gate,
         containerId: c.id,
         code: c.code,
