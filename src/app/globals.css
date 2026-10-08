@@ -1103,3 +1103,151 @@ tbody tr:hover {
     transition: none !important;
   }
 }
+
+/* ==========================================================================
+   FLEET DASHBOARD, MAP MODAL & HISTORY DRAWER STYLES
+   ========================================================================== */
+
+.fleet-map-modal {
+  background: #ffffff;
+  width: 94vw;
+  max-width: 1080px;
+  height: 85vh;
+  max-height: 820px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  animation: modalEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 9999;
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.fleet-map-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  z-index: 10;
+}
+
+.fleet-map-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eaf3ee;
+  color: #215e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fleet-map-canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  z-index: 1;
+}
+
+.fleet-map-footer {
+  padding: 16px 24px;
+  background: #fafbf9;
+  border-top: 1px solid var(--line);
+  z-index: 10;
+}
+
+/* Fleet Cards Grid */
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.fleet-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.fleet-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px -5px rgba(0,0,0,0.06);
+  border-color: #c9d8ce;
+}
+
+.fleet-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.fleet-plate-badge {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.5px;
+}
+
+.fleet-actions-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f2;
+}
+
+/* History Drawer */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.fleet-drawer {
+  background: #ffffff;
+  width: 100%;
+  max-width: 520px;
+  height: 100dvh;
+  box-shadow: -10px 0 35px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  animation: slideDrawer 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes slideDrawer {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
