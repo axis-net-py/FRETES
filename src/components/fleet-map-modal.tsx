@@ -120,9 +120,12 @@ export default function FleetMapModal({
 
       mapInstanceRef.current = map;
 
-      // High-performance logistics map tiles via CARTO Voyager (unblocked, zero rate-limit 403)
+      // High-performance logistics map tiles via CARTO Voyager with AXIS official API key
+      const cartoKey =
+        process.env.NEXT_PUBLIC_CARTO_API_KEY ||
+        "cb1_4ebu_1_4f459222772039164e892304";
       L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${cartoKey}`,
         {
           attribution:
             '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
