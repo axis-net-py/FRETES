@@ -104,6 +104,7 @@ test("notification kinds and professional messages map per checkpoint", () => {
   assert.equal(notificationKindFor("PORT_EXIT", "EXIT"), "DEPARTURE");
   assert.equal(notificationKindFor("APPA", "EXIT"), "DEPARTURE");
   assert.equal(notificationKindFor("MULTILOG", "ENTER"), "MULTILOG_ARRIVAL");
+  assert.equal(notificationKindFor("MULTILOG", "EXIT"), "MULTILOG_DEPARTURE");
   assert.equal(notificationKindFor("CUSTOMS_ENTRY", "ENTER"), "CUSTOMS_ENTRY");
   assert.equal(notificationKindFor("CUSTOMS_EXIT", "EXIT"), "CUSTOMS_EXIT");
   assert.equal(notificationKindFor("CUSTOM", "ENTER"), "CUSTOM_ENTER");
@@ -111,6 +112,9 @@ test("notification kinds and professional messages map per checkpoint", () => {
   assert.ok(departure.eventText.includes("saiu do Porto de Paranaguá"));
   assert.ok(!departure.eventText.includes("acaba de"));
   assert.equal(departure.subject, "Saída do porto");
+  const multiDeparture = eventMessage("MULTILOG_DEPARTURE");
+  assert.ok(multiDeparture.eventText.includes("liberado da Multilog"));
+  assert.equal(multiDeparture.subject, "Saída da Multilog");
   const arrival = eventMessage("MULTILOG_ARRIVAL");
   assert.ok(arrival.eventText.includes("chegou à Multilog"));
   assert.ok(arrival.headline.includes("Multilog"));

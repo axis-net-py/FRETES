@@ -124,6 +124,7 @@ export function notificationKindFor(
   if ((gateKind === "PORT_EXIT" || gateKind === "APPA") && event === "EXIT")
     return "DEPARTURE";
   if (gateKind === "MULTILOG" && event === "ENTER") return "MULTILOG_ARRIVAL";
+  if (gateKind === "MULTILOG" && event === "EXIT") return "MULTILOG_DEPARTURE";
   if (gateKind === "CUSTOMS_ENTRY" && event === "ENTER") return "CUSTOMS_ENTRY";
   if (gateKind === "CUSTOMS_EXIT" && event === "EXIT") return "CUSTOMS_EXIT";
   if (gateKind === "DESTINATION" && event === "ENTER") return "DESTINATION_ARRIVAL";
@@ -166,6 +167,12 @@ export function eventMessage(kind: string, at?: Date): EventMessage {
         eventText: `chegou à Multilog${when}`,
         subject: "Chegada à Multilog",
         headline: "Chegada à Multilog confirmada pelo rastreamento.",
+      };
+    case "MULTILOG_DEPARTURE":
+      return {
+        eventText: `foi liberado da Multilog e seguiu viagem${when}`,
+        subject: "Saída da Multilog",
+        headline: "Saída da Multilog confirmada pelo rastreamento.",
       };
     case "CUSTOMS_ENTRY":
       return {

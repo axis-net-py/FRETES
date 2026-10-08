@@ -299,6 +299,16 @@ export async function processPosition(
         orderBy: { createdAt: "asc" },
       });
       if (!gates.length) return null;
+      const multilogGate = gates.find(
+        (g) => g.kind === "MULTILOG" && !g.notifyOnExit,
+      );
+      if (multilogGate) {
+        multilogGate.notifyOnExit = true;
+        await tx.geofence.update({
+          where: { id: multilogGate.id },
+          data: { notifyOnExit: true },
+        });
+      }
       const journeyEvents = await tx.geofenceEvent.findMany({
         where: { containerId: c.id },
         select: { geofenceId: true, type: true },

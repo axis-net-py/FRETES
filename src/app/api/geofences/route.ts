@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         } else if (name.includes("MULTILOG")) {
           kind = "MULTILOG";
           notifyOnEnter = true;
-          notifyOnExit = false;
+          notifyOnExit = true;
         } else if (
           name.includes("ADUANA") ||
           name.includes("CUSTOMS") ||

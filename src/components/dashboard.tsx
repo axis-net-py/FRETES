@@ -132,10 +132,12 @@ const labels: Record<string, string> = {
   ACCEPTED: "Aceita pela Meta",
   FAILED: "Falha no envio",
   UNKNOWN: "Verificar na Meta",
-  SIMULATED: "Exemplo",
   MULTILOG_ARRIVAL: "Chegada à Multilog",
+  MULTILOG_DEPARTURE: "Saída da Multilog",
   CUSTOMS_ENTRY: "Entrada na aduana",
   CUSTOMS_EXIT: "Saída da aduana",
+  DESTINATION_ARRIVAL: "Chegada ao destino",
+  DESTINATION_DEPARTURE: "Saída do destino",
 };
 const date = (d: string) =>
   new Date(d).toLocaleString("pt-BR", {
