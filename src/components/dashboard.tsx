@@ -311,7 +311,6 @@ export default function Dashboard({
     <Shell demo={demo}>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">CENTRAL DE OPERAÇÕES · RASTREAMENTO GLOBALSAT</div>
           <h1>
             {messages
               ? "Mensagens"
@@ -321,18 +320,18 @@ export default function Dashboard({
           </h1>
           <p>
             {viewMode === "frota"
-              ? "Posição em tempo real via GlobalSAT, status operacional e documentação por caminhão."
+              ? "Posição em tempo real, status operacional e fretes por caminhão."
               : "Acompanhe cada container. Antecipe o próximo movimento."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 w-full lg:w-auto">
           {!messages && (
-            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl mr-1">
+            <div className="grid grid-cols-2 sm:flex items-center bg-slate-200/80 p-1 rounded-xl">
               <button
                 onClick={() => setViewMode("frota")}
-                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                className={`py-2 sm:py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
                   viewMode === "frota"
-                    ? "bg-slate-900 text-amber-400 shadow-sm"
+                    ? "bg-slate-900 text-yellow-400 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -341,9 +340,9 @@ export default function Dashboard({
               </button>
               <button
                 onClick={() => setViewMode("containers")}
-                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                className={`py-2 sm:py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
                   viewMode === "containers"
-                    ? "bg-slate-900 text-amber-400 shadow-sm"
+                    ? "bg-slate-900 text-yellow-400 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -355,23 +354,25 @@ export default function Dashboard({
           {viewMode === "frota" && (
             <button
               onClick={() => setAllFleetMapOpen(true)}
-              className="btn primary flex items-center gap-2 shadow-sm font-semibold"
+              className="btn primary flex items-center justify-center gap-2 shadow-sm font-semibold w-full sm:w-auto"
             >
               <Compass size={18} weight="bold" />
               Ver Toda a Frota no Mapa
             </button>
           )}
-          <button onClick={exportCsv} className="btn secondary">
-            <DownloadSimple size={17} />
-            Exportar
-          </button>
-          <Link
-            href={demo ? "/login" : "/cadastro?tab=containers"}
-            className="btn secondary"
-          >
-            <Plus size={18} />
-            Novo frete
-          </Link>
+          <div className="grid grid-cols-2 sm:flex items-center gap-2">
+            <button onClick={exportCsv} className="btn secondary justify-center">
+              <DownloadSimple size={17} />
+              Exportar
+            </button>
+            <Link
+              href={demo ? "/login" : "/cadastro?tab=containers"}
+              className="btn secondary justify-center"
+            >
+              <Plus size={18} />
+              Novo frete
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -639,12 +640,12 @@ export default function Dashboard({
                 ["TODOS", `Todos (${fleetTotal})`],
                 ["EM_VIAGEM", `Em Trânsito (${fleetInTransit})`],
                 ["NO_PORTO", `Na Aduana (${fleetInPort})`],
-                ["DISPONIVEL", `Pátio / Desligados (${fleetAvailable})`],
+                ["DISPONIVEL", `Pátio (${fleetAvailable})`],
               ].map(([v, l]) => (
                 <button
                   key={v}
                   onClick={() => setFleetFilter(v)}
-                  className={`min-h-[36px] px-3 py-1.5 text-xs rounded-lg transition whitespace-nowrap ${
+                  className={`min-h-[36px] px-3 py-1.5 text-xs rounded-lg transition whitespace-nowrap shrink-0 ${
                     fleetFilter === v ? "selected font-bold" : "text-slate-600"
                   }`}
                 >
@@ -683,7 +684,7 @@ export default function Dashboard({
                   {/* Card Header */}
                   <div className="fleet-card-header">
                     <div className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold shadow-xs border border-amber-400/30 shrink-0">
+                      <span className="w-10 h-10 rounded-xl bg-slate-900 text-yellow-400 flex items-center justify-center font-bold shadow-xs border border-yellow-400/30 shrink-0">
                         <Truck size={22} weight="fill" />
                       </span>
                       <div className="min-w-0">
@@ -700,187 +701,108 @@ export default function Dashboard({
                         </span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="shrink-0">
                       <span
                         className={`badge ${
                           t.status === "EM_VIAGEM"
-                            ? "a_caminho_destino"
+                            ? "em_viagem"
                             : t.status === "NO_PORTO"
-                              ? "chegada_portao"
-                              : "entregue"
+                              ? "no_porto"
+                              : "disponivel"
                         }`}
                       >
                         <span />
                         {t.statusLabel}
                       </span>
-                      <span
-                        className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          t.lastPosition?.isAtCompanyYard
-                            ? "bg-slate-100 text-slate-700 border border-slate-300"
-                            : t.lastPosition?.isAtAduana
-                              ? "bg-amber-50 text-amber-800 border border-amber-300"
-                              : t.lastPosition?.health === "ONLINE"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : t.lastPosition?.health === "ATTENTION"
-                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                  : "bg-slate-100 text-slate-600 border border-slate-200"
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            t.lastPosition?.isAtCompanyYard
-                              ? "bg-slate-500"
-                              : t.lastPosition?.isAtAduana
-                                ? "bg-amber-500"
-                                : t.lastPosition?.health === "ONLINE"
-                                  ? "bg-emerald-500 animate-pulse"
-                                  : t.lastPosition?.health === "ATTENTION"
-                                    ? "bg-amber-500"
-                                    : "bg-slate-400"
-                          }`}
-                        />
-                        {t.lastPosition?.healthLabel || "Aguardando sinal"}
-                      </span>
                     </div>
                   </div>
 
                   {/* Localização da Última Posição */}
-                  <div className="flex items-start gap-2 bg-slate-50/90 border border-slate-200/90 rounded-xl px-3 py-2 mt-3 mb-1 text-xs">
-                    <MapPin size={16} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                          Última Localização
-                        </span>
-                        {t.lastPosition?.shortLabel && (
-                          <span className="text-[10px] font-semibold text-amber-900 bg-amber-100/70 border border-amber-200 px-1.5 py-0.2 rounded truncate max-w-[140px]">
-                            {t.lastPosition.shortLabel}
-                          </span>
-                        )}
-                      </div>
-                      <b
-                        className="text-slate-900 font-semibold text-xs leading-snug block truncate"
-                        title={t.lastPosition?.locationLabel || t.lastPosition?.cityName}
-                      >
-                        {t.lastPosition?.locationLabel || t.lastPosition?.cityName || "Aguardando sinal GPS"}
-                      </b>
-                      {t.lastPosition && (
-                        <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
-                          {t.lastPosition.latitude.toFixed(4)}, {t.lastPosition.longitude.toFixed(4)}
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 py-2 mt-1 text-xs text-slate-700 min-w-0">
+                    <MapPin size={16} weight="fill" className="text-yellow-500 shrink-0" />
+                    <span className="font-semibold text-slate-900 truncate">
+                      {t.lastPosition?.cityName || t.lastPosition?.shortLabel || t.lastPosition?.locationLabel || "Pátio da Empresa"}
+                    </span>
                   </div>
 
-                  {/* Active Freight Details or Ready Status */}
-                  <div className="my-3 flex-1">
+                  {/* Status Operacional / Frete */}
+                  <div className="my-2 flex-1">
                     {t.activeFreight ? (
-                      <div className="p-3 rounded-xl border border-amber-200/80 bg-amber-50/40 space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">
-                            Frete em Andamento
-                          </span>
-                          <b className="font-mono text-slate-800 text-xs">
-                            {t.activeFreight.code}
-                          </b>
+                      <div className="p-3 rounded-xl border border-yellow-200 bg-yellow-50/60 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-800">
+                          <span className="font-mono text-slate-900">{t.activeFreight.code}</span>
+                          {t.activeFreight.crt && (
+                            <span className="text-[10px] text-slate-500 font-normal">CRT: {t.activeFreight.crt}</span>
+                          )}
                         </div>
-                        <div className="text-slate-700 flex items-center gap-1.5 truncate">
-                          <span className="truncate max-w-[120px]">
-                            {t.activeFreight.origin || "Porto de Paranaguá"}
-                          </span>
-                          <ArrowRight size={12} className="text-slate-400 shrink-0" />
-                          <b className="truncate text-slate-800">
-                            {t.activeFreight.destination || "Destino"}
-                          </b>
-                        </div>
-                        <div className="text-[11px] text-slate-500 pt-1 border-t border-amber-200/60 flex items-center justify-between">
-                          <span>
-                            CRT: <b>{t.activeFreight.crt || "—"}</b>
-                          </span>
-                          <span>
-                            MIC: <b>{t.activeFreight.micDta || "—"}</b>
-                          </span>
+                        <div className="text-[11px] text-slate-600 truncate">
+                          {t.activeFreight.origin || "Porto"} → <b className="text-slate-900">{t.activeFreight.destination || "Destino"}</b>
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1 text-xs">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
-                          <CheckCircle size={15} weight="fill" className="text-amber-600" />
-                          <span>
-                            {t.lastPosition?.isAtCompanyYard
-                              ? "Estacionado no pátio da empresa"
-                              : "Caminhão livre para carregamento"}
-                          </span>
-                        </div>
-                        {t.tripHistory[0] ? (
-                          <p className="text-[11px] text-slate-500 truncate mt-1">
-                            Última entrega: <b>{t.tripHistory[0].code}</b> em{" "}
-                            {t.tripHistory[0].destination || "Destino"}
-                          </p>
-                        ) : (
-                          <p className="text-[11px] text-slate-400 mt-1">
-                            Aguardando primeiro frete cadastrado
-                          </p>
-                        )}
+                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 text-xs text-slate-500 flex items-center gap-2">
+                        <CheckCircle size={15} weight="fill" className="text-slate-400 shrink-0" />
+                        <span className="truncate">Caminhão disponível no pátio</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Quick Action Hyperlinks (Mobile-Friendly Tap Targets) */}
-                  <div className="fleet-actions-row">
-                    {/* Action 1: Map */}
+                  {/* Quick Action Buttons (Optimized for Mobile Touch) */}
+                  <div className="fleet-actions-container">
+                    {/* Primary Hero Button: Ver no Mapa em Tempo Real */}
                     <button
                       onClick={() => setMapTruck(t)}
-                      className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300 transition"
-                      title="Ver posição e traçado no mapa"
+                      className="btn primary w-full justify-center text-xs py-2.5 font-semibold flex items-center gap-2 shadow-xs"
+                      title="Ver posição e traçado no mapa em tempo real"
                     >
-                      <Compass size={15} className="shrink-0 text-amber-700" />
-                      <span className="truncate">Ver no Mapa</span>
+                      <Compass size={16} weight="bold" />
+                      <span>Ver no Mapa em Tempo Real</span>
                     </button>
 
-                    {/* Action 2: Document */}
-                    {t.activeFreight?.document ? (
-                      <a
-                        href={`/api/documents/${t.activeFreight.document.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-700 hover:text-amber-900 hover:border-amber-300 transition"
-                        title="Abrir PDF do MIC-DTA / CRT do frete ativo"
-                      >
-                        <FilePdf size={15} className="text-red-600 shrink-0" />
-                        <span className="truncate">Documento</span>
-                      </a>
-                    ) : t.tripHistory[0]?.document ? (
-                      <a
-                        href={`/api/documents/${t.tripHistory[0].document.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-500 hover:text-amber-900 hover:border-amber-300 transition"
-                        title="Abrir PDF do último frete concluído"
-                      >
-                        <FilePdf size={15} className="text-slate-400 shrink-0" />
-                        <span className="truncate">Último Doc</span>
-                      </a>
-                    ) : (
+                    {/* Secondary Row: Documento & Histórico (2 Equal Columns) */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {t.activeFreight?.document ? (
+                        <a
+                          href={`/api/documents/${t.activeFreight.document.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-700 hover:text-amber-900 hover:border-amber-300 transition"
+                          title="Abrir PDF do MIC-DTA / CRT do frete ativo"
+                        >
+                          <FilePdf size={15} className="text-red-600 shrink-0" />
+                          <span className="truncate">Documento</span>
+                        </a>
+                      ) : t.tripHistory[0]?.document ? (
+                        <a
+                          href={`/api/documents/${t.tripHistory[0].document.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-500 hover:text-amber-900 hover:border-amber-300 transition"
+                          title="Abrir PDF do último frete concluído"
+                        >
+                          <FilePdf size={15} className="text-slate-400 shrink-0" />
+                          <span className="truncate">Último Doc</span>
+                        </a>
+                      ) : (
+                        <button
+                          disabled
+                          className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 opacity-40 cursor-not-allowed"
+                          title="Nenhum documento anexado"
+                        >
+                          <FilePdf size={15} className="shrink-0" />
+                          <span className="truncate">Sem Doc</span>
+                        </button>
+                      )}
+
                       <button
-                        disabled
-                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 opacity-40 cursor-not-allowed"
-                        title="Nenhum documento anexado"
+                        onClick={() => setHistoryTruck(t)}
+                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 hover:bg-slate-100 transition"
+                        title="Ver histórico de fretes efetuados"
                       >
-                        <FilePdf size={15} className="shrink-0" />
-                        <span className="truncate">Sem Doc</span>
+                        <ClockCounterClockwise size={15} className="shrink-0 text-slate-500" />
+                        <span className="truncate">Histórico ({t.totalTripsCompleted})</span>
                       </button>
-                    )}
-
-                    {/* Action 3: History */}
-                    <button
-                      onClick={() => setHistoryTruck(t)}
-                      className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 hover:bg-slate-100 transition"
-                      title="Ver histórico de fretes efetuados"
-                    >
-                      <ClockCounterClockwise size={15} className="shrink-0 text-slate-500" />
-                      <span className="truncate">Histórico ({t.totalTripsCompleted})</span>
-                    </button>
+                    </div>
                   </div>
                 </article>
               ))}
@@ -1482,10 +1404,6 @@ export default function Dashboard({
         truck={historyTruck}
       />
 
-      <footer className="page-footer">
-        <span>MANU LOGISTICA · Tecnologia AXIS</span>
-        <span>Logística com informação, em cada etapa.</span>
-      </footer>
     </Shell>
   );
 }

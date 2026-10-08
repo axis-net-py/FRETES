@@ -71,9 +71,6 @@ export default function Shell({
             <b className="truncate block">MANU LOGÍSTICAS E.A.S</b>
             <small className="truncate block text-slate-500">Operação Logística</small>
           </div>
-          <span className="ml-auto text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200">
-            PY/BR
-          </span>
         </div>
 
         <p className="nav-label">OPERAÇÃO</p>
@@ -104,7 +101,7 @@ export default function Shell({
 
         <div className="sidebar-bottom">
           <div className="driver-callout">
-            <span className="text-amber-400">
+            <span className="text-yellow-400">
               <Truck size={23} weight="fill" />
             </span>
             <b>Rastreamento direto no cavalo.</b>
@@ -134,10 +131,10 @@ export default function Shell({
           </button>
 
           <div className="profile">
-            <span className="workspace-avatar small">AX</span>
+            <span className="workspace-avatar small">ML</span>
             <div>
-              <b>{demo ? "Modo demonstração" : "Operador AXIS"}</b>
-              <small>Tecnologia AXIS Soluciones</small>
+              <b>{demo ? "Demonstração" : "Operação"}</b>
+              <small>MANU LOGÍSTICAS E.A.S</small>
             </div>
           </div>
         </div>
@@ -152,15 +149,10 @@ export default function Shell({
           >
             <List size={24} />
           </button>
-          <div className="text-xs sm:text-sm text-slate-500 truncate flex items-center gap-1 sm:gap-2">
-            <b className="text-slate-900 font-bold">MANU LOGÍSTICAS E.A.S</b>
-            <span className="text-slate-300">/</span>
-            <span className="text-amber-700 font-semibold truncate">Operação de Fretes & Telemetria</span>
+          <div className="text-sm font-bold text-slate-900 truncate min-w-0 flex-1">
+            MANU LOGÍSTICAS E.A.S
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden md:inline text-xs font-medium text-slate-400">
-              Desenvolvido por AXIS
-            </span>
             <span className="workspace-avatar small">ML</span>
           </div>
         </header>

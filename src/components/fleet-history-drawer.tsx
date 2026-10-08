@@ -63,14 +63,14 @@ export default function FleetHistoryDrawer({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold border border-amber-400/30 shadow-xs">
+        <div className="p-4 sm:p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
+          <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+            <span className="w-10 h-10 rounded-xl bg-slate-900 text-yellow-400 flex items-center justify-center font-bold border border-yellow-400/30 shadow-xs shrink-0">
               <Truck size={22} weight="fill" />
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 id="drawer-title" className="text-xl font-bold text-slate-800">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 id="drawer-title" className="text-lg sm:text-xl font-bold text-slate-800 truncate">
                   Cavalo {truck.plate}
                 </h2>
                 <span className="badge entregue text-xs">
@@ -78,7 +78,7 @@ export default function FleetHistoryDrawer({
                   {truck.statusLabel}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {truck.driver?.name
                   ? `Motorista: ${truck.driver.name} · ${truck.totalTripsCompleted} frete(s) entregue(s)`
                   : `${truck.totalTripsCompleted} frete(s) entregue(s)`}
@@ -87,15 +87,15 @@ export default function FleetHistoryDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/50 transition"
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition shrink-0 active:scale-95"
             aria-label="Fechar histórico"
           >
-            <X size={20} />
+            <X size={18} weight="bold" />
           </button>
         </div>
 
         {/* Drawer Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
           {/* Active Freight Callout if on road */}
           {truck.activeFreight && (
             <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60">
