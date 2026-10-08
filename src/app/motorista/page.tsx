@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { watchPosition, WatchHandle } from "@/lib/location-client";
 import { STATUS_LABELS, ContainerStatus } from "@/lib/status";
+import Footer from "@/components/footer";
 type Trip = {
   id: string;
   code: string;
@@ -255,6 +256,7 @@ export default function Driver() {
         <ArrowLeft size={14} />
         Acesso da transportadora
       </Link>
+      <Footer className="mt-10" />
     </main>
   );
 }

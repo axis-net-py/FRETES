@@ -159,7 +159,7 @@ export default function FleetMapModal({
             (p) => [p.latitude, p.longitude] as [number, number],
           );
           L.polyline(latLngs, {
-            color: "#1d6f54",
+            color: "#d97706",
             weight: 5,
             opacity: 0.85,
             lineJoin: "round",
@@ -173,8 +173,8 @@ export default function FleetMapModal({
           bounds.extend([curLat, curLng]);
 
           const truckIconHtml = `
-            <div style="background: #205e4b; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.35); border: 2px solid white; display: flex; align-items: center; gap: 5px; white-space: nowrap; transform: translate(-50%, -50%);">
-              <span>🚚</span>
+            <div style="background: #0f172a; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.35); border: 2px solid #f59e0b; display: flex; align-items: center; gap: 5px; white-space: nowrap; transform: translate(-50%, -50%);">
+              <span style="color: #f59e0b;">🚚</span>
               <span>${truck.plate}</span>
             </div>
           `;
@@ -190,7 +190,7 @@ export default function FleetMapModal({
           const timeLabel = truck.lastPosition?.healthLabel || "Sinal recente";
           const popupContent = `
             <div style="padding: 4px; font-family: inherit;">
-              <b style="font-size: 14px; color: #205e4b;">Cavalo ${truck.plate}</b>
+              <b style="font-size: 14px; color: #d97706;">Cavalo ${truck.plate}</b>
               <p style="margin: 4px 0; font-size: 12px; color: #475569;">
                 Motorista: <b>${truck.driver?.name || "Não informado"}</b>
               </p>
@@ -261,10 +261,10 @@ export default function FleetMapModal({
 
           const statusBg =
             t.status === "EM_VIAGEM"
-              ? "#166534"
+              ? "#d97706"
               : t.status === "NO_PORTO"
-                ? "#b45309"
-                : "#1d4ed8";
+                ? "#2563eb"
+                : "#475569";
 
           const iconHtml = `
             <div style="background: ${statusBg}; color: white; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; box-shadow: 0 3px 6px rgba(0,0,0,0.3); border: 2px solid white; display: flex; align-items: center; gap: 5px; white-space: nowrap; transform: translate(-50%, -50%); cursor: pointer;">
@@ -329,7 +329,7 @@ export default function FleetMapModal({
       : null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="fleet-map-backdrop" onClick={onClose}>
       <div
         className="fleet-map-modal"
         role="dialog"
@@ -343,7 +343,7 @@ export default function FleetMapModal({
               <Truck size={22} weight="fill" />
             </span>
             <div>
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 {mode === "all" ? (
                   <>Visão Geral da Frota · Mapa em Tempo Real</>
                 ) : (
@@ -379,8 +379,8 @@ export default function FleetMapModal({
         <div className="fleet-map-canvas-wrapper relative flex-1">
           <div ref={mapContainerRef} className="fleet-map-canvas w-full h-full" />
           {loading && (
-            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-md text-xs font-medium shadow text-slate-700 flex items-center gap-2 z-[1000]">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <div className="absolute top-3 right-3 bg-white/95 backdrop-blur px-3 py-1.5 rounded-lg text-xs font-medium shadow-md border border-slate-200 text-slate-700 flex items-center gap-2 z-[1000]">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
               Atualizando rastro GPS…
             </div>
           )}
@@ -392,25 +392,25 @@ export default function FleetMapModal({
           )}
           {mode === "single" && truck?.lastPosition?.locationLabel && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 border border-slate-200 text-slate-800 px-4 py-2 rounded-xl shadow-md text-xs font-medium z-[1000] flex items-center gap-2 backdrop-blur">
-              <MapPin size={16} weight="fill" className="text-emerald-700 shrink-0" />
+              <MapPin size={16} weight="fill" className="text-amber-600 shrink-0" />
               <span className="font-semibold">{truck.lastPosition.locationLabel}</span>
             </div>
           )}
         </div>
 
-        {/* Telemetry Footer */}
+        {/* Telemetry Footer (Responsive Mobile-Friendly Grid) */}
         {mode === "single" && truck && (
           <div className="fleet-map-footer">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <span className="text-slate-400 block font-medium">Situação</span>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3 text-xs">
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                <span className="text-slate-400 block font-medium text-[11px]">Situação</span>
                 <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5">
                   <span
                     className={`w-2 h-2 rounded-full ${
                       truck.status === "EM_VIAGEM"
-                        ? "bg-emerald-600"
+                        ? "bg-amber-500"
                         : truck.status === "NO_PORTO"
-                          ? "bg-amber-500"
+                          ? "bg-blue-600"
                           : "bg-slate-500"
                     }`}
                   />
@@ -418,56 +418,53 @@ export default function FleetMapModal({
                 </span>
               </div>
 
-              <div>
-                <span className="text-slate-400 block font-medium">Última Localização</span>
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                <span className="text-slate-400 block font-medium text-[11px]">Última Localização</span>
                 <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5 truncate" title={truck.lastPosition?.locationLabel}>
-                  <MapPin size={13} weight="fill" className="text-emerald-700 shrink-0" />
+                  <MapPin size={13} weight="fill" className="text-amber-600 shrink-0" />
                   <span className="truncate">{truck.lastPosition?.shortLabel || truck.lastPosition?.cityName || "-"}</span>
                 </span>
               </div>
 
-              <div>
-                <span className="text-slate-400 block font-medium">Sinal Telemetria</span>
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80">
+                <span className="text-slate-400 block font-medium text-[11px]">Sinal Telemetria</span>
                 <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5">
                   <Clock size={13} className="text-slate-500" />
                   {truck.lastPosition?.healthLabel || "Sem sinal recente"}
                 </span>
               </div>
 
-              <div>
-                <span className="text-slate-400 block font-medium">Coordenadas</span>
-                <span className="font-mono text-slate-700 block mt-0.5">
-                  {currentLat && currentLng
-                    ? `${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`
-                    : "Aguardando fix"}
-                </span>
-              </div>
-
-              <div className="flex items-center md:justify-end">
-                {googleMapsUrl ? (
+              <div className="bg-white p-2 rounded-lg border border-slate-200/80 flex flex-col justify-between">
+                <div>
+                  <span className="text-slate-400 block font-medium text-[11px]">Coordenadas GPS</span>
+                  <span className="font-mono text-slate-700 block mt-0.5 text-[11px] truncate">
+                    {currentLat && currentLng
+                      ? `${currentLat.toFixed(4)}, ${currentLng.toFixed(4)}`
+                      : "Aguardando fix"}
+                  </span>
+                </div>
+                {googleMapsUrl && (
                   <a
                     href={googleMapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+                    className="text-amber-700 hover:text-amber-900 font-semibold text-[11px] flex items-center gap-1 mt-1"
                   >
-                    <ArrowSquareOut size={15} />
-                    Abrir no Google Maps
+                    <ArrowSquareOut size={13} />
+                    Google Maps
                   </a>
-                ) : (
-                  <span className="text-slate-400 text-xs">Sem coordenadas</span>
                 )}
               </div>
             </div>
 
             {truck.activeFreight && (
-              <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+              <div className="mt-2.5 pt-2 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-600">
                 <span>
-                  Frete ativo: <b>{truck.activeFreight.code}</b>
+                  Frete ativo: <b className="text-slate-900">{truck.activeFreight.code}</b>
                 </span>
                 <span>
                   {truck.activeFreight.origin || "Porto"} →{" "}
-                  <b>{truck.activeFreight.destination || "Destino"}</b>
+                  <b className="text-slate-900">{truck.activeFreight.destination || "Destino"}</b>
                 </span>
               </div>
             )}
@@ -475,23 +472,23 @@ export default function FleetMapModal({
         )}
 
         {mode === "all" && (
-          <div className="fleet-map-footer text-xs text-slate-600 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="fleet-map-footer text-xs text-slate-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
                 Em Viagem
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
                 No Porto / Aduana
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
-                Disponível
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block" />
+                Pátio / Disponível
               </span>
             </div>
-            <span className="text-slate-400">
-              Clique em qualquer caminhão no mapa para visualizar os detalhes
+            <span className="text-slate-400 text-[11px]">
+              Toque no caminhão para ver detalhes
             </span>
           </div>
         )}

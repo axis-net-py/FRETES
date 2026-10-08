@@ -65,7 +65,7 @@ export default function FleetHistoryDrawer({
         {/* Drawer Header */}
         <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+            <span className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold border border-amber-400/30 shadow-xs">
               <Truck size={22} weight="fill" />
             </span>
             <div>
@@ -98,10 +98,10 @@ export default function FleetHistoryDrawer({
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {/* Active Freight Callout if on road */}
           {truck.activeFreight && (
-            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/60">
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                   Frete em Andamento
                 </span>
                 <span className="badge a_caminho_destino text-xs">
@@ -115,7 +115,7 @@ export default function FleetHistoryDrawer({
                 {truck.activeFreight.origin || "Origem"} →{" "}
                 <b>{truck.activeFreight.destination || "Destino"}</b>
               </p>
-              <div className="mt-3 flex items-center gap-3 pt-3 border-t border-emerald-200/60 text-xs">
+              <div className="mt-3 flex items-center gap-3 pt-3 border-t border-amber-200/80 text-xs">
                 {truck.activeFreight.document ? (
                   <a
                     href={`/api/documents/${truck.activeFreight.document.id}`}

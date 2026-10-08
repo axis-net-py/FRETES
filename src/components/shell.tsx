@@ -14,6 +14,8 @@ import {
   List,
 } from "@phosphor-icons/react";
 import { useState } from "react";
+import Footer from "./footer";
+
 export default function Shell({
   children,
   demo = false,
@@ -27,7 +29,7 @@ export default function Shell({
     (demo ? "/" : path) + (query.toString() ? "?" + query.toString() : "");
   const [open, setOpen] = useState(false);
   const nav = [
-    { href: "/", name: "Visão geral", icon: SquaresFour },
+    { href: "/", name: "Visão geral & Frota", icon: SquaresFour },
     { href: "/?view=fretes", name: "Fretes", icon: Package },
     { href: "/importar", name: "Importar documento", icon: Package },
     { href: "/cadastro?tab=drivers", name: "Motoristas", icon: Truck },
@@ -35,26 +37,45 @@ export default function Shell({
     { href: "/cadastro?tab=gates", name: "Portos e portões", icon: MapPin },
     { href: "/?view=mensagens", name: "Mensagens", icon: WhatsappLogo },
   ];
+
   return (
     <div className="app-shell">
+      {/* Mobile Drawer Backdrop */}
+      {open && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       <aside className={`sidebar ${open ? "mobile-open" : ""}`}>
-        <Link href={demo ? "/demo" : "/"} className="brand">
+        <Link href={demo ? "/demo" : "/"} className="brand" onClick={() => setOpen(false)}>
           <span className="brand-mark">
-            <Truck size={23} weight="bold" />
+            <Truck size={22} weight="bold" />
           </span>
-          <span>
-            AXIS<span className="font-normal opacity-60"> / </span>
-            <span className="font-normal">fretes</span>
-          </span>
+          <div className="flex flex-col leading-tight">
+            <div className="flex items-center gap-1 font-black text-slate-900 tracking-tight text-lg">
+              <span>MANU</span>
+              <span className="text-[11px] text-amber-600 font-bold italic tracking-normal">LOGÍSTICAS</span>
+            </div>
+            <span className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">
+              RASTREAMENTO
+            </span>
+          </div>
         </Link>
+
         <div className="workspace">
           <span className="workspace-avatar">ML</span>
-          <div>
-            <b>MANU LOGISTICA</b>
-            <small>Operação logística</small>
+          <div className="min-w-0 flex-1">
+            <b className="truncate block">MANU LOGÍSTICAS E.A.S</b>
+            <small className="truncate block text-slate-500">Operação Logística</small>
           </div>
-          <span className="ml-auto text-gray-400">⌄</span>
+          <span className="ml-auto text-amber-600 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200">
+            PY/BR
+          </span>
         </div>
+
         <p className="nav-label">OPERAÇÃO</p>
         <nav>
           {nav.map((n) => (
@@ -73,27 +94,30 @@ export default function Shell({
               }
             >
               <n.icon size={20} />
-              {n.name}
+              <span>{n.name}</span>
               {n.name === "Mensagens" && (
                 <span className="ml-auto status-dot" />
               )}
             </Link>
           ))}
         </nav>
+
         <div className="sidebar-bottom">
           <div className="driver-callout">
-            <span className="text-emerald-300">
-              <Truck size={23} />
+            <span className="text-amber-400">
+              <Truck size={23} weight="fill" />
             </span>
             <b>Rastreamento direto no cavalo.</b>
-            <p>Posições recebidas do rastreador GlobalSAT instalado no veículo.</p>
-            <Link href={demo ? "/demo" : "/?view=fretes"}>
+            <p>Posições em tempo real da GlobalSAT sincronizadas nos veículos da frota.</p>
+            <Link href={demo ? "/demo" : "/?view=fretes"} onClick={() => setOpen(false)}>
               Acompanhar fretes <ArrowUpRight size={16} />
             </Link>
           </div>
+
           <Link
             href={demo ? "/login" : "/cadastro?tab=settings"}
             className="nav-item"
+            onClick={() => setOpen(false)}
           >
             <GearSix size={20} />
             Configurações
@@ -108,16 +132,18 @@ export default function Shell({
             <SignOut size={20} />
             Sair
           </button>
+
           <div className="profile">
-            <span className="workspace-avatar">OP</span>
+            <span className="workspace-avatar small">AX</span>
             <div>
-              <b>{demo ? "Modo demonstração" : "Administrador"}</b>
-              <small>Controle da operação</small>
+              <b>{demo ? "Modo demonstração" : "Operador AXIS"}</b>
+              <small>Tecnologia AXIS Soluciones</small>
             </div>
           </div>
         </div>
       </aside>
-      <div className="main-wrapper">
+
+      <div className="main-wrapper flex flex-col min-h-screen">
         <header className="topbar">
           <button
             aria-label="Abrir menu"
@@ -126,24 +152,29 @@ export default function Shell({
           >
             <List size={24} />
           </button>
-          <div className="text-sm text-slate-500">
-            MANU LOGISTICA <span className="mx-3 text-slate-300">/</span>{" "}
-            <span className="text-slate-800">Operação de fretes</span>
+          <div className="text-xs sm:text-sm text-slate-500 truncate flex items-center gap-1 sm:gap-2">
+            <b className="text-slate-900 font-bold">MANU LOGÍSTICAS E.A.S</b>
+            <span className="text-slate-300">/</span>
+            <span className="text-amber-700 font-semibold truncate">Operação de Fretes & Telemetria</span>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:inline text-xs text-slate-500">
-              Do porto ao destino.
+          <div className="flex items-center gap-3">
+            <span className="hidden md:inline text-xs font-medium text-slate-400">
+              Desenvolvido por AXIS
             </span>
             <span className="workspace-avatar small">ML</span>
           </div>
         </header>
+
         {demo && (
           <div className="demo-bar">
             Demonstração com dados fictícios. Nenhuma mensagem é enviada.{" "}
             <Link href="/login">Entrar na operação →</Link>
           </div>
         )}
-        <main className="page-content">{children}</main>
+
+        <main className="page-content flex-1 w-full">{children}</main>
+
+        <Footer className="mt-auto" />
       </div>
     </div>
   );

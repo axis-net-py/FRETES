@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { STATUS_LABELS, ContainerStatus } from "@/lib/status";
+import Footer from "@/components/footer";
 type Trip = {
   code: string;
   status: string;
@@ -58,8 +59,8 @@ export default function Tracking() {
   }, []);
   return (
     <main className="max-w-2xl mx-auto px-5 py-12">
-      <p className="eyebrow">AXIS FRETES · ACOMPANHAMENTO</p>
-      <h1 className="text-3xl font-semibold mt-3">
+      <p className="eyebrow text-amber-700">MANU LOGÍSTICAS E.A.S · ACOMPANHAMENTO DE CARGA</p>
+      <h1 className="text-3xl font-semibold mt-3 text-slate-900">
         Sua carga, etapa por etapa
       </h1>
       {error && (
@@ -67,17 +68,17 @@ export default function Tracking() {
           {error}
         </p>
       )}
-      {!trip && !error && <p className="mt-6">Carregando viagem…</p>}
+      {!trip && !error && <p className="mt-6 text-slate-500">Carregando viagem…</p>}
       {trip && (
         <>
           <section className="panel p-6 mt-8">
             <p className="text-sm text-slate-500">Container</p>
-            <h2 className="text-2xl font-semibold">{trip.code}</h2>
-            <p className="mt-3">
+            <h2 className="text-2xl font-bold text-slate-900">{trip.code}</h2>
+            <p className="mt-3 text-slate-700">
               {trip.origin || "Porto de Paranaguá"} →{" "}
-              {trip.destination || "Destino a confirmar"}
+              <b>{trip.destination || "Destino a confirmar"}</b>
             </p>
-            <p className="mt-4 font-semibold text-emerald-800">
+            <p className="mt-4 font-bold text-amber-800">
               {STATUS_LABELS[trip.status as ContainerStatus] || trip.status}
             </p>
           </section>
@@ -124,7 +125,7 @@ export default function Tracking() {
             ].map(([label, done, time]) => (
               <li
                 key={String(label)}
-                className={done ? "text-emerald-800" : "text-slate-400"}
+                className={done ? "text-amber-800" : "text-slate-400"}
               >
                 <b>
                   {done ? "✓" : "○"} {label}
@@ -139,6 +140,7 @@ export default function Tracking() {
           </p>
         </>
       )}
+      <Footer className="mt-12" />
     </main>
   );
 }

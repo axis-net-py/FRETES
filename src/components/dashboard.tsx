@@ -332,7 +332,7 @@ export default function Dashboard({
                 onClick={() => setViewMode("frota")}
                 className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                   viewMode === "frota"
-                    ? "bg-white text-emerald-900 shadow-sm"
+                    ? "bg-slate-900 text-amber-400 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -343,7 +343,7 @@ export default function Dashboard({
                 onClick={() => setViewMode("containers")}
                 className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
                   viewMode === "containers"
-                    ? "bg-white text-emerald-900 shadow-sm"
+                    ? "bg-slate-900 text-amber-400 shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
@@ -632,38 +632,41 @@ export default function Dashboard({
         </section>
       ) : viewMode === "frota" ? (
         <section className="mt-6">
-          {/* Toolbar: Filter Tabs & Search */}
-          <div className="panel p-4 mb-5 flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="filter-tabs w-full md:w-auto">
+          {/* Toolbar: Filter Tabs & Search (Mobile-First) */}
+          <div className="panel p-3 sm:p-4 mb-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-4">
+            <div className="filter-tabs flex items-center gap-1.5 overflow-x-auto no-scrollbar w-full md:w-auto py-0.5">
               {[
                 ["TODOS", `Todos (${fleetTotal})`],
                 ["EM_VIAGEM", `Em Trânsito (${fleetInTransit})`],
                 ["NO_PORTO", `Na Aduana (${fleetInPort})`],
-                ["DISPONIVEL", `Desligados / Pátio (${fleetAvailable})`],
+                ["DISPONIVEL", `Pátio / Desligados (${fleetAvailable})`],
               ].map(([v, l]) => (
                 <button
                   key={v}
                   onClick={() => setFleetFilter(v)}
-                  className={fleetFilter === v ? "selected" : ""}
+                  className={`min-h-[36px] px-3 py-1.5 text-xs rounded-lg transition whitespace-nowrap ${
+                    fleetFilter === v ? "selected font-bold" : "text-slate-600"
+                  }`}
                 >
                   {l}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <label className="search-box w-full md:w-80">
-                <MagnifyingGlass size={18} />
+              <label className="search-box flex-1 md:w-80 min-h-[38px]">
+                <MagnifyingGlass size={18} className="shrink-0 text-slate-400" />
                 <input
                   aria-label="Buscar na frota"
                   placeholder="Buscar placa, motorista, container…"
                   value={fleetQuery}
                   onChange={(e) => setFleetQuery(e.target.value)}
+                  className="w-full text-xs"
                 />
               </label>
               {fleetQuery && (
                 <button
                   onClick={() => setFleetQuery("")}
-                  className="btn secondary px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-600"
+                  className="btn secondary px-2.5 min-h-[38px] text-xs text-slate-400 hover:text-slate-600 shrink-0"
                   title="Limpar busca"
                 >
                   <X size={15} />
@@ -680,24 +683,24 @@ export default function Dashboard({
                   {/* Card Header */}
                   <div className="fleet-card-header">
                     <div className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-xl bg-emerald-100/70 text-emerald-800 flex items-center justify-center font-bold">
+                      <span className="w-10 h-10 rounded-xl bg-slate-900 text-amber-400 flex items-center justify-center font-bold shadow-xs border border-amber-400/30 shrink-0">
                         <Truck size={22} weight="fill" />
                       </span>
-                      <div>
-                        <div className="flex items-center gap-1.5">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <b className="fleet-plate-badge">{t.plate}</b>
                           {t.activeFreight?.trailerPlate && (
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[11px] font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                               + {t.activeFreight.trailerPlate}
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-slate-500 block mt-0.5">
+                        <span className="text-xs text-slate-500 block mt-0.5 truncate max-w-[200px]">
                           {t.driver?.name || "Sem motorista vinculado"}
                         </span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
                       <span
                         className={`badge ${
                           t.status === "EM_VIAGEM"
@@ -743,14 +746,14 @@ export default function Dashboard({
 
                   {/* Localização da Última Posição */}
                   <div className="flex items-start gap-2 bg-slate-50/90 border border-slate-200/90 rounded-xl px-3 py-2 mt-3 mb-1 text-xs">
-                    <MapPin size={16} weight="fill" className="text-emerald-700 shrink-0 mt-0.5" />
+                    <MapPin size={16} weight="fill" className="text-amber-600 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-1 mb-0.5">
                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                           Última Localização
                         </span>
                         {t.lastPosition?.shortLabel && (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/60 px-1.5 py-0.2 rounded truncate max-w-[140px]">
+                          <span className="text-[10px] font-semibold text-amber-900 bg-amber-100/70 border border-amber-200 px-1.5 py-0.2 rounded truncate max-w-[140px]">
                             {t.lastPosition.shortLabel}
                           </span>
                         )}
@@ -772,9 +775,9 @@ export default function Dashboard({
                   {/* Active Freight Details or Ready Status */}
                   <div className="my-3 flex-1">
                     {t.activeFreight ? (
-                      <div className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-1.5 text-xs">
+                      <div className="p-3 rounded-xl border border-amber-200/80 bg-amber-50/40 space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">
+                          <span className="text-[10px] uppercase font-bold text-amber-900 tracking-wider">
                             Frete em Andamento
                           </span>
                           <b className="font-mono text-slate-800 text-xs">
@@ -790,7 +793,7 @@ export default function Dashboard({
                             {t.activeFreight.destination || "Destino"}
                           </b>
                         </div>
-                        <div className="text-[11px] text-slate-500 pt-1 border-t border-emerald-100/60 flex items-center justify-between">
+                        <div className="text-[11px] text-slate-500 pt-1 border-t border-amber-200/60 flex items-center justify-between">
                           <span>
                             CRT: <b>{t.activeFreight.crt || "—"}</b>
                           </span>
@@ -800,9 +803,9 @@ export default function Dashboard({
                         </div>
                       </div>
                     ) : (
-                      <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1 text-xs">
-                        <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
-                          <CheckCircle size={15} weight="fill" />
+                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5 text-slate-700 font-semibold text-xs">
+                          <CheckCircle size={15} weight="fill" className="text-amber-600" />
                           <span>
                             {t.lastPosition?.isAtCompanyYard
                               ? "Estacionado no pátio da empresa"
@@ -823,16 +826,16 @@ export default function Dashboard({
                     )}
                   </div>
 
-                  {/* Quick Action Hyperlinks */}
+                  {/* Quick Action Hyperlinks (Mobile-Friendly Tap Targets) */}
                   <div className="fleet-actions-row">
                     {/* Action 1: Map */}
                     <button
                       onClick={() => setMapTruck(t)}
-                      className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition"
+                      className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 hover:bg-amber-50 hover:text-amber-900 hover:border-amber-300 transition"
                       title="Ver posição e traçado no mapa"
                     >
-                      <Compass size={15} />
-                      <span>Ver no Mapa</span>
+                      <Compass size={15} className="shrink-0 text-amber-700" />
+                      <span className="truncate">Ver no Mapa</span>
                     </button>
 
                     {/* Action 2: Document */}
@@ -841,42 +844,42 @@ export default function Dashboard({
                         href={`/api/documents/${t.activeFreight.document.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-slate-700 hover:text-emerald-800 hover:border-emerald-300 transition"
+                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-700 hover:text-amber-900 hover:border-amber-300 transition"
                         title="Abrir PDF do MIC-DTA / CRT do frete ativo"
                       >
-                        <FilePdf size={15} className="text-red-600" />
-                        <span>Documento</span>
+                        <FilePdf size={15} className="text-red-600 shrink-0" />
+                        <span className="truncate">Documento</span>
                       </a>
                     ) : t.tripHistory[0]?.document ? (
                       <a
                         href={`/api/documents/${t.tripHistory[0].document.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-slate-500 hover:text-emerald-800 transition"
+                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 text-slate-500 hover:text-amber-900 hover:border-amber-300 transition"
                         title="Abrir PDF do último frete concluído"
                       >
-                        <FilePdf size={15} className="text-slate-400" />
-                        <span>Último Doc</span>
+                        <FilePdf size={15} className="text-slate-400 shrink-0" />
+                        <span className="truncate">Último Doc</span>
                       </a>
                     ) : (
                       <button
                         disabled
-                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 opacity-40 cursor-not-allowed"
+                        className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 opacity-40 cursor-not-allowed"
                         title="Nenhum documento anexado"
                       >
-                        <FilePdf size={15} />
-                        <span>Sem Doc</span>
+                        <FilePdf size={15} className="shrink-0" />
+                        <span className="truncate">Sem Doc</span>
                       </button>
                     )}
 
                     {/* Action 3: History */}
                     <button
                       onClick={() => setHistoryTruck(t)}
-                      className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 hover:bg-slate-100 transition"
+                      className="btn secondary text-xs py-2 px-2 min-h-[38px] flex items-center justify-center gap-1.5 hover:bg-slate-100 transition"
                       title="Ver histórico de fretes efetuados"
                     >
-                      <ClockCounterClockwise size={15} />
-                      <span>Histórico ({t.totalTripsCompleted})</span>
+                      <ClockCounterClockwise size={15} className="shrink-0 text-slate-500" />
+                      <span className="truncate">Histórico ({t.totalTripsCompleted})</span>
                     </button>
                   </div>
                 </article>
