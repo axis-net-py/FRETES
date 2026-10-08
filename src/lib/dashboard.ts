@@ -1,7 +1,9 @@
 import { prisma } from "./prisma";
 import { dashboardGlobalSatState } from "./globalsat-status";
+import { aggregateFleet, type RawPositionFix } from "./fleet";
+
 export async function getDashboard() {
-  const [containers, clients, drivers, gates, notifications, globalSatState] =
+  const [containers, clients, drivers, gates, notifications, globalSatState, latestPositions] =
     await Promise.all([
       prisma.container.findMany({
         orderBy: { updatedAt: "desc" },
@@ -26,9 +28,25 @@ export async function getDashboard() {
         where: { provider: "GLOBALSAT" },
         select: { lastSucceededAt: true, lastError: true },
       }),
+      prisma.$queryRaw<RawPositionFix[]>`
+        SELECT DISTINCT ON (p."driverId")
+          p.id, p."driverId", p."containerId", p.latitude, p.longitude, p."recordedAt", p.source,
+          d.plate as "driverPlate"
+        FROM "Position" p
+        JOIN "Driver" d ON p."driverId" = d.id
+        WHERE p.source = 'GLOBALSAT'
+        ORDER BY p."driverId", p."recordedAt" DESC
+      `.catch(() => [] as RawPositionFix[]),
     ]);
+
+  const fleet = aggregateFleet({
+    containers,
+    drivers,
+    latestPositions,
+  });
   return JSON.parse(
     JSON.stringify({
+      fleet,
       containers: containers.map(({ trackingTokenHash, ...c }) => {
         void trackingTokenHash;
         return c;
