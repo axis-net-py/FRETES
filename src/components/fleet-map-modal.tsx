@@ -3,14 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   X,
-  NavigationArrow,
-  MapPin,
   ArrowSquareOut,
   Clock,
   Truck,
-  ArrowRight,
 } from "@phosphor-icons/react";
 import type { FleetVehicle } from "@/lib/fleet";
+import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 type TrailData = {
@@ -64,8 +62,9 @@ export default function FleetMapModal({
   allTrucks = [],
   onSelectTruck,
 }: FleetMapModalProps) {
+  void onSelectTruck;
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const mapInstanceRef = useRef<LeafletMap | null>(null);
   const [trailData, setTrailData] = useState<TrailData | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -145,7 +144,7 @@ export default function FleetMapModal({
           const latLngs = trailData.trail.map(
             (p) => [p.latitude, p.longitude] as [number, number],
           );
-          const polyline = L.polyline(latLngs, {
+          L.polyline(latLngs, {
             color: "#1d6f54",
             weight: 5,
             opacity: 0.85,

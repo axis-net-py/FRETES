@@ -139,14 +139,41 @@ export function deriveTruckStatus(
   return { status: "EM_VIAGEM", statusLabel: s };
 }
 
+export type DriverEntity = {
+  id: string;
+  name: string;
+  phone?: string | null;
+  plate?: string | null;
+};
+
+export type ContainerEntity = {
+  id: string;
+  code: string;
+  status: string;
+  origin?: string | null;
+  destination?: string | null;
+  truckPlate?: string | null;
+  trailerPlate?: string | null;
+  crt?: string | null;
+  micDta?: string | null;
+  departedAt?: Date | string | null;
+  updatedAt: Date | string;
+  driverId?: string | null;
+  client?: { name: string } | null;
+  driver?: { id: string; name: string; phone?: string | null } | null;
+  documentLinks?: Array<{
+    document: { id: string; filename: string };
+  }>;
+};
+
 export function aggregateFleet({
   containers,
   drivers,
   latestPositions,
   now = new Date(),
 }: {
-  containers: any[];
-  drivers: any[];
+  containers: ContainerEntity[];
+  drivers: DriverEntity[];
   latestPositions: RawPositionFix[];
   now?: Date;
 }): FleetVehicle[] {
@@ -156,8 +183,8 @@ export function aggregateFleet({
   const positionByPlate = new Map<string, RawPositionFix>();
 
   // Map drivers by normalized plate
-  const driverByPlate = new Map<string, any>();
-  const driverById = new Map<string, any>();
+  const driverByPlate = new Map<string, DriverEntity>();
+  const driverById = new Map<string, DriverEntity>();
   for (const d of drivers) {
     driverById.set(d.id, d);
     if (d.plate) {
@@ -169,7 +196,8 @@ export function aggregateFleet({
     if (pos.source === "GLOBALSAT") {
       let plate = pos.driverPlate ? normalizePlate(pos.driverPlate) : "";
       if (!plate && pos.driverId && driverById.has(pos.driverId)) {
-        plate = normalizePlate(driverById.get(pos.driverId).plate);
+        const found = driverById.get(pos.driverId);
+        plate = found?.plate ? normalizePlate(found.plate) : "";
       }
       if (plate) {
         globalSatPlates.add(plate);
@@ -181,7 +209,7 @@ export function aggregateFleet({
   }
 
   // Also include any truck that has an active container or driver matching a GlobalSat plate
-  const containersByTruckPlate = new Map<string, any[]>();
+  const containersByTruckPlate = new Map<string, ContainerEntity[]>();
   for (const c of containers) {
     const p = normalizePlate(c.truckPlate || "");
     if (p) {
@@ -204,7 +232,7 @@ export function aggregateFleet({
     const historyRaw = truckContainers.filter((c) => c.status === "ENTREGUE");
 
     // Helper to format freight
-    const formatFreight = (c: any): FleetFreight => ({
+    const formatFreight = (c: ContainerEntity): FleetFreight => ({
       id: c.id,
       code: c.code,
       status: c.status,

@@ -8,8 +8,12 @@ import {
   ArrowUpRight,
   CheckCircle,
   Clock,
+  ClockCounterClockwise,
+  Compass,
   DownloadSimple,
+  FilePdf,
   Funnel,
+  ListBullets,
   MapPin,
   Package,
   Plus,
@@ -22,6 +26,9 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import Shell from "./shell";
+import type { FleetVehicle } from "@/lib/fleet";
+import FleetMapModal from "./fleet-map-modal";
+import FleetHistoryDrawer from "./fleet-history-drawer";
 import {
   CONTAINER_STATUSES,
   STATUS_LABELS,
@@ -96,6 +103,7 @@ export type Freight = {
   events?: { id: string; geofenceId: string; type: string; createdAt: string }[];
 };
 export type DashboardData = {
+  fleet?: FleetVehicle[];
   containers: Freight[];
   clients: { id: string; name: string }[];
   drivers: { id: string; name: string }[];
@@ -176,6 +184,40 @@ export default function Dashboard({
   const [editing, setEditing] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const [viewMode, setViewMode] = useState<"frota" | "containers">("frota");
+  const [mapTruck, setMapTruck] = useState<FleetVehicle | null>(null);
+  const [allFleetMapOpen, setAllFleetMapOpen] = useState(false);
+  const [historyTruck, setHistoryTruck] = useState<FleetVehicle | null>(null);
+  const [fleetFilter, setFleetFilter] = useState("TODOS");
+  const [fleetQuery, setFleetQuery] = useState("");
+
+  const fleet = data.fleet || [];
+  const fleetTotal = fleet.length;
+  const fleetInTransit = fleet.filter((t) => t.status === "EM_VIAGEM").length;
+  const fleetInPort = fleet.filter((t) => t.status === "NO_PORTO").length;
+  const fleetAvailable = fleet.filter((t) => t.status === "DISPONIVEL").length;
+
+  const filteredFleet = fleet.filter((t) => {
+    const matchesFilter =
+      fleetFilter === "TODOS" || t.status === fleetFilter;
+    const q = fleetQuery.toLowerCase().trim();
+    const matchesQuery =
+      !q ||
+      [
+        t.plate,
+        t.driver?.name,
+        t.activeFreight?.code,
+        t.activeFreight?.trailerPlate,
+        t.activeFreight?.destination,
+        t.tripHistory[0]?.destination,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    return matchesFilter && matchesQuery;
+  });
   useEffect(() => {
     if (demo) return;
     const timer = setInterval(() => router.refresh(), 30000);
@@ -269,18 +311,31 @@ export default function Dashboard({
     <Shell demo={demo}>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">CENTRAL DE OPERAÇÕES</div>
-          <h1>{messages ? "Mensagens" : "Visão geral"}</h1>
-          <p>Acompanhe cada container. Antecipe o próximo movimento.</p>
+          <div className="eyebrow">CENTRAL DE OPERAÇÕES · RASTREAMENTO GLOBALSAT</div>
+          <h1>{messages ? "Mensagens" : viewMode === "frota" ? "Controle da Frota" : "Visão Geral dos Fretes"}</h1>
+          <p>
+            {viewMode === "frota"
+              ? "Posição em tempo real via GlobalSAT, status operacional e documentação por caminhão."
+              : "Acompanhe cada container. Antecipe o próximo movimento."}
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {viewMode === "frota" && (
+            <button
+              onClick={() => setAllFleetMapOpen(true)}
+              className="btn primary flex items-center gap-2 shadow-sm font-semibold"
+            >
+              <Compass size={18} weight="bold" />
+              Ver Toda a Frota no Mapa
+            </button>
+          )}
           <button onClick={exportCsv} className="btn secondary">
             <DownloadSimple size={17} />
             Exportar
           </button>
           <Link
             href={demo ? "/login" : "/cadastro?tab=containers"}
-            className="btn primary"
+            className="btn secondary"
           >
             <Plus size={18} />
             Novo frete
@@ -288,46 +343,112 @@ export default function Dashboard({
         </div>
       </div>
       <div className="metrics">
-        {[
-          {
-            title: "Fretes cadastrados",
-            value: total,
-            icon: Package,
-            sub: "Visibilidade de ponta a ponta",
-          },
-          {
-            title: "Em trânsito",
-            value: transit,
-            icon: Truck,
-            sub: "A caminho do portão",
-          },
-          {
-            title: "No portão",
-            value: gateCount,
-            icon: MapPin,
-            sub: "Chegada identificada por GPS",
-          },
-          {
-            title: "Entregues",
-            value: delivered,
-            icon: CheckCircle,
-            sub: "Operações concluídas",
-          },
-        ].map((m, i) => (
-          <div className="metric" key={m.title}>
-            <div className="flex justify-between items-center text-slate-500 text-sm">
-              <span>{m.title}</span>
-              <m.icon size={20} className={i === 2 ? "text-emerald-700" : ""} />
-            </div>
-            <strong>{String(m.value).padStart(2, "0")}</strong>
-            <small>
-              {i === 1 && <span className="status-dot" />}
-              {m.sub}
-            </small>
-          </div>
-        ))}
+        {viewMode === "frota"
+          ? [
+              {
+                title: "Frota monitorada",
+                value: fleetTotal,
+                icon: Truck,
+                sub: "Caminhões com GlobalSAT",
+              },
+              {
+                title: "Em viagem",
+                value: fleetInTransit,
+                icon: NavigationArrow,
+                sub: "Cargas em trânsito rodoviário",
+              },
+              {
+                title: "No porto / aduana",
+                value: fleetInPort,
+                icon: MapPin,
+                sub: "Em área de controle aduaneiro",
+              },
+              {
+                title: "Disponíveis",
+                value: fleetAvailable,
+                icon: CheckCircle,
+                sub: "Prontos para novo frete",
+              },
+            ].map((m, i) => (
+              <div className="metric" key={m.title}>
+                <div className="flex justify-between items-center text-slate-500 text-sm">
+                  <span>{m.title}</span>
+                  <m.icon size={20} className={i === 1 ? "text-emerald-700" : ""} />
+                </div>
+                <strong>{String(m.value).padStart(2, "0")}</strong>
+                <small>
+                  {i === 1 && <span className="status-dot" />}
+                  {m.sub}
+                </small>
+              </div>
+            ))
+          : [
+              {
+                title: "Fretes cadastrados",
+                value: total,
+                icon: Package,
+                sub: "Visibilidade de ponta a ponta",
+              },
+              {
+                title: "Em trânsito",
+                value: transit,
+                icon: Truck,
+                sub: "A caminho do portão",
+              },
+              {
+                title: "No portão",
+                value: gateCount,
+                icon: MapPin,
+                sub: "Chegada identificada por GPS",
+              },
+              {
+                title: "Entregues",
+                value: delivered,
+                icon: CheckCircle,
+                sub: "Operações concluídas",
+              },
+            ].map((m, i) => (
+              <div className="metric" key={m.title}>
+                <div className="flex justify-between items-center text-slate-500 text-sm">
+                  <span>{m.title}</span>
+                  <m.icon size={20} className={i === 2 ? "text-emerald-700" : ""} />
+                </div>
+                <strong>{String(m.value).padStart(2, "0")}</strong>
+                <small>
+                  {i === 1 && <span className="status-dot" />}
+                  {m.sub}
+                </small>
+              </div>
+            ))}
       </div>
+
       {!messages && (
+        <div className="flex items-center justify-between mt-6 bg-slate-200/60 p-1 rounded-xl max-w-md">
+          <button
+            onClick={() => setViewMode("frota")}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
+              viewMode === "frota"
+                ? "bg-white text-emerald-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Truck size={17} weight={viewMode === "frota" ? "fill" : "regular"} />
+            Frota de Caminhões ({fleetTotal})
+          </button>
+          <button
+            onClick={() => setViewMode("containers")}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
+              viewMode === "containers"
+                ? "bg-white text-emerald-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <ListBullets size={17} weight={viewMode === "containers" ? "bold" : "regular"} />
+            Tabela de Fretes ({total})
+          </button>
+        </div>
+      )}
+      {!messages && viewMode === "containers" && (
         <div className="overview-grid">
           <section className="panel overflow-hidden">
             <div className="panel-heading">
@@ -538,6 +659,240 @@ export default function Dashboard({
                 text="As saídas confirmadas do porto aparecerão aqui, junto com o resultado de cada envio."
               />
             )}
+          </div>
+        </section>
+      ) : viewMode === "frota" ? (
+        <section className="mt-6">
+          {/* Toolbar: Filter Tabs & Search */}
+          <div className="panel p-4 mb-5 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="filter-tabs w-full md:w-auto">
+              {[
+                ["TODOS", `Todos (${fleetTotal})`],
+                ["EM_VIAGEM", `Em Viagem (${fleetInTransit})`],
+                ["NO_PORTO", `No Porto (${fleetInPort})`],
+                ["DISPONIVEL", `Disponíveis (${fleetAvailable})`],
+              ].map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => setFleetFilter(v)}
+                  className={fleetFilter === v ? "selected" : ""}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <label className="search-box w-full md:w-80">
+                <MagnifyingGlass size={18} />
+                <input
+                  aria-label="Buscar na frota"
+                  placeholder="Buscar placa, motorista, container…"
+                  value={fleetQuery}
+                  onChange={(e) => setFleetQuery(e.target.value)}
+                />
+              </label>
+              {fleetQuery && (
+                <button
+                  onClick={() => setFleetQuery("")}
+                  className="btn secondary px-2.5 py-1.5 text-xs text-slate-400 hover:text-slate-600"
+                  title="Limpar busca"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          {filteredFleet.length ? (
+            <div className="fleet-grid">
+              {filteredFleet.map((t) => (
+                <article key={t.plate} className="fleet-card">
+                  {/* Card Header */}
+                  <div className="fleet-card-header">
+                    <div className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-xl bg-emerald-100/70 text-emerald-800 flex items-center justify-center font-bold">
+                        <Truck size={22} weight="fill" />
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <b className="fleet-plate-badge">{t.plate}</b>
+                          {t.activeFreight?.trailerPlate && (
+                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                              + {t.activeFreight.trailerPlate}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-slate-500 block mt-0.5">
+                          {t.driver?.name || "Sem motorista vinculado"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span
+                        className={`badge ${
+                          t.status === "EM_VIAGEM"
+                            ? "a_caminho_destino"
+                            : t.status === "NO_PORTO"
+                              ? "chegada_portao"
+                              : "entregue"
+                        }`}
+                      >
+                        <span />
+                        {t.statusLabel}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                          t.lastPosition?.health === "ONLINE"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : t.lastPosition?.health === "ATTENTION"
+                              ? "bg-amber-50 text-amber-700 border border-amber-200"
+                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            t.lastPosition?.health === "ONLINE"
+                              ? "bg-emerald-500 animate-pulse"
+                              : t.lastPosition?.health === "ATTENTION"
+                                ? "bg-amber-500"
+                                : "bg-slate-400"
+                          }`}
+                        />
+                        {t.lastPosition?.healthLabel || "Sem GPS"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Active Freight Details or Ready Status */}
+                  <div className="my-3 flex-1">
+                    {t.activeFreight ? (
+                      <div className="p-3 rounded-xl border border-emerald-100 bg-emerald-50/40 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider">
+                            Frete em Andamento
+                          </span>
+                          <b className="font-mono text-slate-800 text-xs">
+                            {t.activeFreight.code}
+                          </b>
+                        </div>
+                        <div className="text-slate-700 flex items-center gap-1.5 truncate">
+                          <span className="truncate max-w-[120px]">
+                            {t.activeFreight.origin || "Porto de Paranaguá"}
+                          </span>
+                          <ArrowRight size={12} className="text-slate-400 shrink-0" />
+                          <b className="truncate text-slate-800">
+                            {t.activeFreight.destination || "Destino"}
+                          </b>
+                        </div>
+                        <div className="text-[11px] text-slate-500 pt-1 border-t border-emerald-100/60 flex items-center justify-between">
+                          <span>
+                            CRT: <b>{t.activeFreight.crt || "—"}</b>
+                          </span>
+                          <span>
+                            MIC: <b>{t.activeFreight.micDta || "—"}</b>
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1 text-xs">
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
+                          <CheckCircle size={15} weight="fill" />
+                          <span>Caminhão livre para carregamento</span>
+                        </div>
+                        {t.tripHistory[0] ? (
+                          <p className="text-[11px] text-slate-500 truncate mt-1">
+                            Última entrega: <b>{t.tripHistory[0].code}</b> em{" "}
+                            {t.tripHistory[0].destination || "Destino"}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-400 mt-1">
+                            Aguardando primeiro frete cadastrado
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Action Hyperlinks */}
+                  <div className="fleet-actions-row">
+                    {/* Action 1: Map */}
+                    <button
+                      onClick={() => setMapTruck(t)}
+                      className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 transition"
+                      title="Ver posição e traçado no mapa"
+                    >
+                      <Compass size={15} />
+                      <span>Ver no Mapa</span>
+                    </button>
+
+                    {/* Action 2: Document */}
+                    {t.activeFreight?.document ? (
+                      <a
+                        href={`/api/documents/${t.activeFreight.document.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-slate-700 hover:text-emerald-800 hover:border-emerald-300 transition"
+                        title="Abrir PDF do MIC-DTA / CRT do frete ativo"
+                      >
+                        <FilePdf size={15} className="text-red-600" />
+                        <span>Documento</span>
+                      </a>
+                    ) : t.tripHistory[0]?.document ? (
+                      <a
+                        href={`/api/documents/${t.tripHistory[0].document.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 text-slate-500 hover:text-emerald-800 transition"
+                        title="Abrir PDF do último frete concluído"
+                      >
+                        <FilePdf size={15} className="text-slate-400" />
+                        <span>Último Doc</span>
+                      </a>
+                    ) : (
+                      <button
+                        disabled
+                        className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 opacity-40 cursor-not-allowed"
+                        title="Nenhum documento anexado"
+                      >
+                        <FilePdf size={15} />
+                        <span>Sem Doc</span>
+                      </button>
+                    )}
+
+                    {/* Action 3: History */}
+                    <button
+                      onClick={() => setHistoryTruck(t)}
+                      className="btn secondary text-xs py-1.5 px-2 flex items-center justify-center gap-1.5 hover:bg-slate-100 transition"
+                      title="Ver histórico de fretes efetuados"
+                    >
+                      <ClockCounterClockwise size={15} />
+                      <span>Histórico ({t.totalTripsCompleted})</span>
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <Empty
+              title="Nenhum caminhão encontrado"
+              text="Tente outro termo ou filtro de status."
+            />
+          )}
+
+          <div className="table-footer mt-5">
+            <span>
+              {filteredFleet.length} de {fleetTotal} caminhões rastreados
+            </span>
+            <span>
+              {!data.globalSatSync.configured
+                ? "GlobalSAT não configurada"
+                : data.globalSatSync.status === "error"
+                  ? "GlobalSAT com falha de sincronização"
+                  : data.globalSatSync.lastSyncAt
+                    ? `GlobalSAT sincronizada · ${date(data.globalSatSync.lastSyncAt)}`
+                    : "GlobalSAT aguardando sincronização"}
+            </span>
           </div>
         </section>
       ) : (
@@ -1093,6 +1448,28 @@ export default function Dashboard({
           </section>
         </div>
       )}
+      {/* Fleet Map Modal (Single Truck or All Fleet) */}
+      <FleetMapModal
+        isOpen={!!mapTruck}
+        onClose={() => setMapTruck(null)}
+        mode="single"
+        truck={mapTruck}
+      />
+
+      <FleetMapModal
+        isOpen={allFleetMapOpen}
+        onClose={() => setAllFleetMapOpen(false)}
+        mode="all"
+        allTrucks={fleet}
+      />
+
+      {/* Fleet History Slide-over Drawer */}
+      <FleetHistoryDrawer
+        isOpen={!!historyTruck}
+        onClose={() => setHistoryTruck(null)}
+        truck={historyTruck}
+      />
+
       <footer className="page-footer">
         <span>MANU LOGISTICA · Tecnologia AXIS</span>
         <span>Logística com informação, em cada etapa.</span>
