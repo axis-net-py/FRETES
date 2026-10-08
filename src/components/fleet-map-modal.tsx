@@ -6,6 +6,7 @@ import {
   ArrowSquareOut,
   Clock,
   Truck,
+  MapPin,
 } from "@phosphor-icons/react";
 import type { FleetVehicle } from "@/lib/fleet";
 import type { Map as LeafletMap } from "leaflet";
@@ -389,10 +390,10 @@ export default function FleetMapModal({
               <span>Aguardando sinal GPS da GlobalSAT · Caminhão atualmente desligado na base</span>
             </div>
           )}
-          {mode === "single" && truck?.lastPosition?.isAtCompanyYard && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-emerald-50/95 border border-emerald-200 text-emerald-900 px-4 py-2 rounded-xl shadow-md text-xs font-medium z-[1000] flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-              <span>Caminhão estacionado no pátio da empresa (Katueté / La Paloma)</span>
+          {mode === "single" && truck?.lastPosition?.locationLabel && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 border border-slate-200 text-slate-800 px-4 py-2 rounded-xl shadow-md text-xs font-medium z-[1000] flex items-center gap-2 backdrop-blur">
+              <MapPin size={16} weight="fill" className="text-emerald-700 shrink-0" />
+              <span className="font-semibold">{truck.lastPosition.locationLabel}</span>
             </div>
           )}
         </div>
@@ -410,7 +411,7 @@ export default function FleetMapModal({
                         ? "bg-emerald-600"
                         : truck.status === "NO_PORTO"
                           ? "bg-amber-500"
-                          : "bg-blue-600"
+                          : "bg-slate-500"
                     }`}
                   />
                   {truck.statusLabel}
@@ -418,7 +419,15 @@ export default function FleetMapModal({
               </div>
 
               <div>
-                <span className="text-slate-400 block font-medium">Último Sinal GPS</span>
+                <span className="text-slate-400 block font-medium">Última Localização</span>
+                <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5 truncate" title={truck.lastPosition?.locationLabel}>
+                  <MapPin size={13} weight="fill" className="text-emerald-700 shrink-0" />
+                  <span className="truncate">{truck.lastPosition?.shortLabel || truck.lastPosition?.cityName || "-"}</span>
+                </span>
+              </div>
+
+              <div>
+                <span className="text-slate-400 block font-medium">Sinal Telemetria</span>
                 <span className="font-semibold text-slate-800 flex items-center gap-1.5 mt-0.5">
                   <Clock size={13} className="text-slate-500" />
                   {truck.lastPosition?.healthLabel || "Sem sinal recente"}

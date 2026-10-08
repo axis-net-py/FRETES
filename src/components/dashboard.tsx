@@ -637,9 +637,9 @@ export default function Dashboard({
             <div className="filter-tabs w-full md:w-auto">
               {[
                 ["TODOS", `Todos (${fleetTotal})`],
-                ["EM_VIAGEM", `Em Viagem (${fleetInTransit})`],
-                ["NO_PORTO", `No Porto (${fleetInPort})`],
-                ["DISPONIVEL", `Disponíveis (${fleetAvailable})`],
+                ["EM_VIAGEM", `Em Trânsito (${fleetInTransit})`],
+                ["NO_PORTO", `Na Aduana (${fleetInPort})`],
+                ["DISPONIVEL", `Desligados / Pátio (${fleetAvailable})`],
               ].map(([v, l]) => (
                 <button
                   key={v}
@@ -712,28 +712,60 @@ export default function Dashboard({
                       </span>
                       <span
                         className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          t.lastPosition?.isAtCompanyYard && t.status === "DISPONIVEL"
+                          t.lastPosition?.isAtCompanyYard
                             ? "bg-slate-100 text-slate-700 border border-slate-300"
-                            : t.lastPosition?.health === "ONLINE"
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : t.lastPosition?.health === "ATTENTION"
-                                ? "bg-amber-50 text-amber-700 border border-amber-200"
-                                : "bg-slate-100 text-slate-500 border border-slate-200"
+                            : t.lastPosition?.isAtAduana
+                              ? "bg-amber-50 text-amber-800 border border-amber-300"
+                              : t.lastPosition?.health === "ONLINE"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : t.lastPosition?.health === "ATTENTION"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : "bg-slate-100 text-slate-600 border border-slate-200"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            t.lastPosition?.isAtCompanyYard && t.status === "DISPONIVEL"
-                              ? "bg-emerald-600"
-                              : t.lastPosition?.health === "ONLINE"
-                                ? "bg-emerald-500 animate-pulse"
-                                : t.lastPosition?.health === "ATTENTION"
-                                  ? "bg-amber-500"
-                                  : "bg-slate-400"
+                            t.lastPosition?.isAtCompanyYard
+                              ? "bg-slate-500"
+                              : t.lastPosition?.isAtAduana
+                                ? "bg-amber-500"
+                                : t.lastPosition?.health === "ONLINE"
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : t.lastPosition?.health === "ATTENTION"
+                                    ? "bg-amber-500"
+                                    : "bg-slate-400"
                           }`}
                         />
                         {t.lastPosition?.healthLabel || "Aguardando sinal"}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Localização da Última Posição */}
+                  <div className="flex items-start gap-2 bg-slate-50/90 border border-slate-200/90 rounded-xl px-3 py-2 mt-3 mb-1 text-xs">
+                    <MapPin size={16} weight="fill" className="text-emerald-700 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                          Última Localização
+                        </span>
+                        {t.lastPosition?.shortLabel && (
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/60 px-1.5 py-0.2 rounded truncate max-w-[140px]">
+                            {t.lastPosition.shortLabel}
+                          </span>
+                        )}
+                      </div>
+                      <b
+                        className="text-slate-900 font-semibold text-xs leading-snug block truncate"
+                        title={t.lastPosition?.locationLabel || t.lastPosition?.cityName}
+                      >
+                        {t.lastPosition?.locationLabel || t.lastPosition?.cityName || "Aguardando sinal GPS"}
+                      </b>
+                      {t.lastPosition && (
+                        <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">
+                          {t.lastPosition.latitude.toFixed(4)}, {t.lastPosition.longitude.toFixed(4)}
+                        </span>
+                      )}
                     </div>
                   </div>
 

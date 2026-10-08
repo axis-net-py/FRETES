@@ -45,6 +45,7 @@ export interface GlobalSatSyncRepository {
   ): Promise<{ acquired: boolean; cursor: bigint | null }>;
   listActiveTrips(): Promise<ActiveTrip[]>;
   hasExternalPosition(externalId: string): Promise<boolean>;
+  recordFleetPositions?(targets: GlobalSatTarget[]): Promise<void>;
   complete(
     cursor: bigint | null,
     summary: GlobalSatSyncSummary,
@@ -138,6 +139,39 @@ const databaseRepository: GlobalSatSyncRepository = {
         where: { source: PROVIDER, externalId },
       })) > 0
     );
+  },
+  async recordFleetPositions(targets) {
+    const drivers = await prisma.driver.findMany({
+      select: { id: true, plate: true },
+    });
+    const driverByPlate = new Map(
+      drivers
+        .map((d) => [normalizePlate(d.plate), d] as const)
+        .filter(([p]) => p),
+    );
+    for (const target of targets) {
+      if (!target.position) continue;
+      const plate = normalizePlate(target.plate);
+      const driver = driverByPlate.get(plate);
+      if (!driver) continue;
+      const externalId = String(target.position.id);
+      const exists = await prisma.position.count({
+        where: { source: PROVIDER, externalId },
+      });
+      if (!exists) {
+        await prisma.position.create({
+          data: {
+            driverId: driver.id,
+            latitude: target.position.latitude,
+            longitude: target.position.longitude,
+            accuracyM: 50,
+            source: PROVIDER,
+            externalId,
+            recordedAt: target.position.recordedAt,
+          },
+        });
+      }
+    }
   },
   async complete(cursor, summary, now) {
     await prisma.integrationState.update({
@@ -239,7 +273,10 @@ export async function syncGlobalSat(
   try {
     const trips = await repository.listActiveTrips();
     const client = deps.client || configuredClient();
-    const targets = trips.length ? await client.listTargets() : [];
+    const targets = client.listTargets ? await client.listTargets() : [];
+    if (repository.recordFleetPositions && targets.length) {
+      await repository.recordFleetPositions(targets);
+    }
     const { matches, unmatchedPlates } = matchActiveTrips(trips, targets);
     const fixesByTrip = new Map<string, Map<string, PendingFix>>();
     const targetById = new Map(targets.map((target) => [target.id, target]));

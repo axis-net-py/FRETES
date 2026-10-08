@@ -41,19 +41,19 @@ test("computeGpsHealth handles offline / stale signal (>120m or null)", () => {
 test("deriveTruckStatus derives correct statuses", () => {
   assert.deepEqual(deriveTruckStatus({ status: "EM_TRANSITO" }), {
     status: "EM_VIAGEM",
-    statusLabel: "Em Viagem",
+    statusLabel: "Em Trânsito",
   });
   assert.deepEqual(deriveTruckStatus({ status: "A_CAMINHO_DESTINO" }), {
     status: "EM_VIAGEM",
-    statusLabel: "Em Viagem",
+    statusLabel: "Em Trânsito",
   });
   assert.deepEqual(deriveTruckStatus({ status: "CHEGADA_PORTAO" }), {
     status: "NO_PORTO",
-    statusLabel: "No Porto / Aduana",
+    statusLabel: "Na Aduana",
   });
   assert.deepEqual(deriveTruckStatus({ status: "LIBERADO" }), {
     status: "NO_PORTO",
-    statusLabel: "No Porto / Aduana",
+    statusLabel: "Na Aduana",
   });
   assert.deepEqual(deriveTruckStatus({ status: "ENTREGUE" }), {
     status: "DISPONIVEL",
@@ -238,12 +238,13 @@ test("aggregateFleet includes all 11 AXIS fleet trucks and detects parked truck 
   assert.ok(tassi);
   assert.equal(tassi.driver?.name, "MARCOS TASSI");
   assert.equal(tassi.status, "DISPONIVEL");
-  assert.equal(tassi.statusLabel, "Disponível");
+  assert.equal(tassi.statusLabel, "No Pátio (Katueté)");
   assert.equal(tassi.activeFreight, null);
   assert.equal(tassi.tripHistory.length, 1);
   assert.equal(tassi.tripHistory[0].code, "CS-BR366200452");
   assert.equal(tassi.lastPosition?.isAtCompanyYard, true);
-  assert.equal(tassi.lastPosition?.healthLabel, "No pátio (estacionado)");
+  assert.equal(tassi.lastPosition?.healthLabel, "No pátio (desligado)");
+  assert.equal(tassi.lastPosition?.cityName, "Katueté");
 
   // Leonardo Galvalisis must be EM_VIAGEM
   const leo = fleet.find((t) => t.plate === "AAME593");
@@ -257,5 +258,72 @@ test("aggregateFleet includes all 11 AXIS fleet trucks and detects parked truck 
   assert.equal(claudionor.driver?.name, "CLAUDIONOR GONZALEZ");
   assert.equal(claudionor.status, "DISPONIVEL");
   assert.equal(claudionor.lastPosition, null);
+});
+
+test("aggregateFleet faithfully identifies 5 in transit, 2 in customs, 4 parked/off and resolves cities", () => {
+  const now = new Date("2026-10-08T14:00:00Z");
+
+  const drivers = [
+    { id: "d1", name: "LEONARDO GALVALISIS", phone: "", plate: "AAME593" },
+    { id: "d2", name: "CLAUDIONOR GONZALEZ", phone: "", plate: "AAME814" },
+    { id: "d3", name: "MARCELO VENTURA", phone: "", plate: "AAME899" },
+    { id: "d4", name: "VICTOR RAUL", phone: "", plate: "AARG542" },
+    { id: "d5", name: "MARCOS TASSI", phone: "", plate: "AARG801" },
+    { id: "d6", name: "GILBERTO YEGROS", phone: "", plate: "AASC676" },
+    { id: "d7", name: "ADRIANO VENTURA", phone: "", plate: "AASZ042" },
+    { id: "d8", name: "EVER STRIEDER", phone: "", plate: "AAUT382" },
+    { id: "d9", name: "VALDEMIR MARCOLA", phone: "", plate: "AAYE568" },
+    { id: "d10", name: "GUSTAVO RAMON", phone: "", plate: "ABBJ596" },
+    { id: "d11", name: "EDERSON FACHINI", phone: "", plate: "ABCD519" },
+  ];
+
+  const containers = [
+    {
+      id: "c-leo",
+      code: "MSNU6732375",
+      status: "A_CAMINHO_DESTINO",
+      origin: "CHINA",
+      destination: "HERNANDARIAS - PY",
+      truckPlate: "AAME593",
+      driverId: "d1",
+      updatedAt: "2026-10-08T13:20:00Z",
+    },
+  ];
+
+  const latestPositions: RawPositionFix[] = [
+    // 5 Em Trânsito
+    { id: "p1", driverId: "d1", latitude: -25.47314, longitude: -49.81749, recordedAt: new Date("2026-10-08T13:55:00Z"), source: "GLOBALSAT", driverPlate: "AAME593" },
+    { id: "p2", driverId: "d2", latitude: -25.5447, longitude: -49.8911, recordedAt: new Date("2026-10-08T13:55:00Z"), source: "GLOBALSAT", driverPlate: "AAME814" },
+    { id: "p6", driverId: "d6", latitude: -25.5847, longitude: -49.6358, recordedAt: new Date("2026-10-08T13:55:00Z"), source: "GLOBALSAT", driverPlate: "AASC676" },
+    { id: "p9", driverId: "d9", latitude: -23.5558, longitude: -52.2197, recordedAt: new Date("2026-10-08T13:55:00Z"), source: "GLOBALSAT", driverPlate: "AAYE568" },
+    { id: "p10", driverId: "d10", latitude: -25.4284, longitude: -49.2733, recordedAt: new Date("2026-10-08T13:55:00Z"), source: "GLOBALSAT", driverPlate: "ABBJ596" },
+
+    // 2 Na Aduana
+    { id: "p3", driverId: "d3", latitude: -25.5115, longitude: -54.6030, recordedAt: new Date("2026-10-08T11:00:00Z"), source: "GLOBALSAT", driverPlate: "AAME899" },
+    { id: "p7", driverId: "d7", latitude: -25.5115, longitude: -54.6030, recordedAt: new Date("2026-10-08T11:00:00Z"), source: "GLOBALSAT", driverPlate: "AASZ042" },
+
+    // 4 Desligados / Pátio
+    { id: "p4", driverId: "d4", latitude: -24.0811, longitude: -54.2567, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AARG542" },
+    { id: "p5", driverId: "d5", latitude: -24.25666, longitude: -54.77191, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AARG801" },
+    { id: "p8", driverId: "d8", latitude: -24.25664, longitude: -54.77221, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AAUT382" },
+    { id: "p11", driverId: "d11", latitude: -25.5383, longitude: -54.6150, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "ABCD519" },
+  ];
+
+  const fleet = aggregateFleet({ containers, drivers, latestPositions, now });
+  assert.equal(fleet.length, 11);
+
+  const inTransit = fleet.filter((t) => t.status === "EM_VIAGEM");
+  const inCustoms = fleet.filter((t) => t.status === "NO_PORTO");
+  const idle = fleet.filter((t) => t.status === "DISPONIVEL");
+
+  assert.equal(inTransit.length, 5);
+  assert.equal(inCustoms.length, 2);
+  assert.equal(idle.length, 4);
+
+  // Check resolved cities
+  assert.match(fleet.find((t) => t.plate === "AAME593")?.lastPosition?.locationLabel || "", /Palmeira/);
+  assert.match(fleet.find((t) => t.plate === "AAME899")?.lastPosition?.locationLabel || "", /Aduana Paraguaya/);
+  assert.match(fleet.find((t) => t.plate === "AARG801")?.lastPosition?.locationLabel || "", /Katuet/);
+  assert.match(fleet.find((t) => t.plate === "AARG542")?.lastPosition?.locationLabel || "", /Gua/);
 });
 

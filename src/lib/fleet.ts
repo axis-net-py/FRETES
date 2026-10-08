@@ -1,3 +1,5 @@
+import { resolveLocation } from "./location-resolver";
+
 export type GpsHealth = "ONLINE" | "ATTENTION" | "OFFLINE";
 
 export type TruckOperationalStatus =
@@ -59,7 +61,10 @@ export type FleetVehicle = {
     ageMinutes: number;
     healthLabel: string;
     isAtCompanyYard?: boolean;
+    isAtAduana?: boolean;
+    cityName?: string;
     locationLabel?: string;
+    shortLabel?: string;
   } | null;
   tripHistory: FleetFreight[];
   totalTripsCompleted: number;
@@ -122,23 +127,47 @@ export function computeGpsHealth(
 
 export function deriveTruckStatus(
   activeContainer?: { status: string } | null,
+  lastPosition?: {
+    isAtCompanyYard?: boolean;
+    isAtAduana?: boolean;
+    health?: GpsHealth;
+  } | null,
 ): { status: TruckOperationalStatus; statusLabel: string } {
-  if (!activeContainer) {
+  // Se está na aduana (ou container indica chegada em porto/aduana)
+  if (
+    activeContainer?.status === "CHEGADA_PORTAO" ||
+    activeContainer?.status === "LIBERADO" ||
+    lastPosition?.isAtAduana
+  ) {
+    return { status: "NO_PORTO", statusLabel: "Na Aduana" };
+  }
+
+  // Se tem container ativo em trânsito
+  if (
+    activeContainer &&
+    ["EM_TRANSITO", "A_CAMINHO_DESTINO"].includes(activeContainer.status)
+  ) {
+    return { status: "EM_VIAGEM", statusLabel: "Em Trânsito" };
+  }
+
+  // Se está no pátio da empresa (Manu Logística / Katueté)
+  if (lastPosition?.isAtCompanyYard) {
+    return { status: "DISPONIVEL", statusLabel: "No Pátio (Katueté)" };
+  }
+
+  // Se está fora do pátio e da aduana
+  if (lastPosition && !lastPosition.isAtCompanyYard && !lastPosition.isAtAduana) {
+    if (lastPosition.health === "ONLINE") {
+      return { status: "EM_VIAGEM", statusLabel: "Em Trânsito" };
+    }
+    return { status: "DISPONIVEL", statusLabel: "Desligado" };
+  }
+
+  if (activeContainer?.status === "ENTREGUE") {
     return { status: "DISPONIVEL", statusLabel: "Disponível" };
   }
 
-  const s = activeContainer.status;
-  if (["EM_TRANSITO", "A_CAMINHO_DESTINO"].includes(s)) {
-    return { status: "EM_VIAGEM", statusLabel: "Em Viagem" };
-  }
-  if (["CHEGADA_PORTAO", "LIBERADO"].includes(s)) {
-    return { status: "NO_PORTO", statusLabel: "No Porto / Aduana" };
-  }
-  if (s === "ENTREGUE") {
-    return { status: "DISPONIVEL", statusLabel: "Disponível" };
-  }
-
-  return { status: "EM_VIAGEM", statusLabel: s };
+  return { status: "DISPONIVEL", statusLabel: "Disponível" };
 }
 
 export type DriverEntity = {
@@ -188,21 +217,6 @@ export const COMPANY_YARD = {
   name: "Pátio da empresa (Katueté)",
 };
 
-function distanceM(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 
 export function aggregateFleet({
   containers,
@@ -321,8 +335,6 @@ export function aggregateFleet({
       b.updatedAt.localeCompare(a.updatedAt),
     );
 
-    const { status, statusLabel } = deriveTruckStatus(activeFreight);
-
     // Position & GPS Health
     const pos = positionByPlate.get(plate);
     let lastPosition: FleetVehicle["lastPosition"] = null;
@@ -332,17 +344,20 @@ export function aggregateFleet({
           ? pos.recordedAt.toISOString()
           : String(pos.recordedAt);
       const healthInfo = computeGpsHealth(pos.recordedAt, now);
-      const distToYard = distanceM(
-        pos.latitude,
-        pos.longitude,
-        COMPANY_YARD.latitude,
-        COMPANY_YARD.longitude,
-      );
-      const isAtCompanyYard = distToYard <= 2500;
+      const loc = resolveLocation({
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+      });
+
       let healthLabel = healthInfo.healthLabel;
-      if (isAtCompanyYard && status === "DISPONIVEL") {
-        healthLabel = "No pátio (estacionado)";
+      if (loc.isAtCompanyYard) {
+        healthLabel = "No pátio (desligado)";
+      } else if (loc.isAtAduana) {
+        healthLabel = "Na aduana (parado)";
+      } else if (healthInfo.health === "OFFLINE") {
+        healthLabel = "Motor desligado";
       }
+
       lastPosition = {
         latitude: pos.latitude,
         longitude: pos.longitude,
@@ -350,10 +365,15 @@ export function aggregateFleet({
         source: pos.source,
         ...healthInfo,
         healthLabel,
-        isAtCompanyYard,
-        locationLabel: isAtCompanyYard ? COMPANY_YARD.name : undefined,
+        isAtCompanyYard: loc.isAtCompanyYard,
+        isAtAduana: loc.isAtAduana,
+        cityName: loc.cityName,
+        locationLabel: loc.locationLabel,
+        shortLabel: loc.shortLabel,
       };
     }
+
+    const { status, statusLabel } = deriveTruckStatus(activeFreight, lastPosition);
 
     const driverObj = rawDriver
       ? {
