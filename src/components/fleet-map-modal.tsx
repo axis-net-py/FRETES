@@ -120,18 +120,28 @@ export default function FleetMapModal({
 
       mapInstanceRef.current = map;
 
-      // OpenStreetMap Tile Layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
-        maxZoom: 19,
-      }).addTo(map);
+      // High-performance logistics map tiles via CARTO Voyager (unblocked, zero rate-limit 403)
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 20,
+        },
+      ).addTo(map);
 
-      // Force recalculation of container size after modal animation
-      setTimeout(() => {
-        if (isSubscribed && mapInstanceRef.current) {
-          mapInstanceRef.current.invalidateSize();
-        }
-      }, 250);
+      // Force recalculation of container size after modal entrance animation
+      const scheduleResize = (delay: number) => {
+        setTimeout(() => {
+          if (isSubscribed && mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+          }
+        }, delay);
+      };
+      scheduleResize(50);
+      scheduleResize(200);
+      scheduleResize(500);
 
       const bounds = L.latLngBounds([]);
 
@@ -232,7 +242,9 @@ export default function FleetMapModal({
 
         // Fit map bounds
         if (bounds.isValid()) {
-          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+        } else if (curLat && curLng) {
+          map.setView([curLat, curLng], 14);
         }
       } else if (mode === "all") {
         // Mode ALL: plot all trucks with positions
@@ -366,6 +378,18 @@ export default function FleetMapModal({
             <div className="absolute top-3 right-3 bg-white/90 backdrop-blur px-3 py-1.5 rounded-md text-xs font-medium shadow text-slate-700 flex items-center gap-2 z-[1000]">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
               Atualizando rastro GPS…
+            </div>
+          )}
+          {mode === "single" && (!currentLat || !currentLng) && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-amber-50/95 border border-amber-200 text-amber-900 px-4 py-2 rounded-xl shadow-md text-xs font-medium z-[1000] flex items-center gap-2">
+              <Clock size={16} className="text-amber-600 shrink-0" />
+              <span>Aguardando sinal GPS da GlobalSAT · Caminhão atualmente desligado na base</span>
+            </div>
+          )}
+          {mode === "single" && truck?.lastPosition?.isAtCompanyYard && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-emerald-50/95 border border-emerald-200 text-emerald-900 px-4 py-2 rounded-xl shadow-md text-xs font-medium z-[1000] flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+              <span>Caminhão estacionado no pátio da empresa (Katueté / La Paloma)</span>
             </div>
           )}
         </div>

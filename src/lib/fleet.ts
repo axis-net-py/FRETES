@@ -58,6 +58,8 @@ export type FleetVehicle = {
     health: GpsHealth;
     ageMinutes: number;
     healthLabel: string;
+    isAtCompanyYard?: boolean;
+    locationLabel?: string;
   } | null;
   tripHistory: FleetFreight[];
   totalTripsCompleted: number;
@@ -166,6 +168,42 @@ export type ContainerEntity = {
   }>;
 };
 
+export const AXIS_FLEET_PLATES = [
+  "AAME593",
+  "AAME814",
+  "AAME899",
+  "AARG542",
+  "AARG801",
+  "AASC676",
+  "AASZ042",
+  "AAUT382",
+  "AAYE568",
+  "ABBJ596",
+  "ABCD519",
+] as const;
+
+export const COMPANY_YARD = {
+  latitude: -24.2567,
+  longitude: -54.772,
+  name: "Pátio da empresa (Katueté)",
+};
+
+function distanceM(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
 export function aggregateFleet({
   containers,
   drivers,
@@ -177,12 +215,7 @@ export function aggregateFleet({
   latestPositions: RawPositionFix[];
   now?: Date;
 }): FleetVehicle[] {
-  // 1. Identify which plates have GlobalSAT tracking:
-  // The user requested: only include trucks that count with GlobalSAT synchronization.
-  const globalSatPlates = new Set<string>();
-  const positionByPlate = new Map<string, RawPositionFix>();
-
-  // Map drivers by normalized plate
+  // Map drivers by normalized plate and ID
   const driverByPlate = new Map<string, DriverEntity>();
   const driverById = new Map<string, DriverEntity>();
   for (const d of drivers) {
@@ -192,6 +225,8 @@ export function aggregateFleet({
     }
   }
 
+  // 1. Identify positions from GlobalSAT
+  const positionByPlate = new Map<string, RawPositionFix>();
   for (const pos of latestPositions) {
     if (pos.source === "GLOBALSAT") {
       let plate = pos.driverPlate ? normalizePlate(pos.driverPlate) : "";
@@ -199,16 +234,43 @@ export function aggregateFleet({
         const found = driverById.get(pos.driverId);
         plate = found?.plate ? normalizePlate(found.plate) : "";
       }
-      if (plate) {
-        globalSatPlates.add(plate);
-        if (!positionByPlate.has(plate)) {
-          positionByPlate.set(plate, pos);
-        }
+      if (plate && !positionByPlate.has(plate)) {
+        positionByPlate.set(plate, pos);
       }
     }
   }
 
-  // Also include any truck that has an active container or driver matching a GlobalSat plate
+  // 2. Identify the fleet:
+  // The AXIS fleet has 11 registered trucks (AXIS_FLEET_PLATES).
+  // Include every driver who belongs to the AXIS fleet or has a GlobalSAT position.
+  const fleetPlates = new Set<string>();
+
+  for (const d of drivers) {
+    const p = normalizePlate(d.plate || "");
+    if (!p) continue;
+    if (
+      (AXIS_FLEET_PLATES as readonly string[]).includes(p) ||
+      positionByPlate.has(p)
+    ) {
+      fleetPlates.add(p);
+    }
+  }
+
+  // In production (when all company drivers are loaded), ensure all 11 canonical plates exist
+  if (drivers.length >= 6) {
+    for (const p of AXIS_FLEET_PLATES) {
+      fleetPlates.add(p);
+    }
+  }
+
+  // Also include any plate that has a GlobalSAT position
+  for (const [plate] of positionByPlate) {
+    if ((AXIS_FLEET_PLATES as readonly string[]).includes(plate)) {
+      fleetPlates.add(plate);
+    }
+  }
+
+  // Map containers by truck plate
   const containersByTruckPlate = new Map<string, ContainerEntity[]>();
   for (const c of containers) {
     const p = normalizePlate(c.truckPlate || "");
@@ -219,10 +281,10 @@ export function aggregateFleet({
     }
   }
 
-  // Build FleetVehicle for each GlobalSat plate
+  // Build FleetVehicle for each fleet plate
   const fleet: FleetVehicle[] = [];
 
-  for (const plate of globalSatPlates) {
+  for (const plate of fleetPlates) {
     const rawDriver = driverByPlate.get(plate);
     const truckContainers = containersByTruckPlate.get(plate) || [];
 
@@ -270,12 +332,26 @@ export function aggregateFleet({
           ? pos.recordedAt.toISOString()
           : String(pos.recordedAt);
       const healthInfo = computeGpsHealth(pos.recordedAt, now);
+      const distToYard = distanceM(
+        pos.latitude,
+        pos.longitude,
+        COMPANY_YARD.latitude,
+        COMPANY_YARD.longitude,
+      );
+      const isAtCompanyYard = distToYard <= 2500;
+      let healthLabel = healthInfo.healthLabel;
+      if (isAtCompanyYard && status === "DISPONIVEL") {
+        healthLabel = "No pátio (estacionado)";
+      }
       lastPosition = {
         latitude: pos.latitude,
         longitude: pos.longitude,
         recordedAt,
         source: pos.source,
         ...healthInfo,
+        healthLabel,
+        isAtCompanyYard,
+        locationLabel: isAtCompanyYard ? COMPANY_YARD.name : undefined,
       };
     }
 

@@ -312,7 +312,13 @@ export default function Dashboard({
       <div className="page-heading">
         <div>
           <div className="eyebrow">CENTRAL DE OPERAÇÕES · RASTREAMENTO GLOBALSAT</div>
-          <h1>{messages ? "Mensagens" : viewMode === "frota" ? "Controle da Frota" : "Visão Geral dos Fretes"}</h1>
+          <h1>
+            {messages
+              ? "Mensagens"
+              : viewMode === "frota"
+                ? `Controle da Frota (${fleetTotal} Caminhões)`
+                : "Visão Geral dos Fretes"}
+          </h1>
           <p>
             {viewMode === "frota"
               ? "Posição em tempo real via GlobalSAT, status operacional e documentação por caminhão."
@@ -320,6 +326,32 @@ export default function Dashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!messages && (
+            <div className="flex items-center bg-slate-200/80 p-1 rounded-xl mr-1">
+              <button
+                onClick={() => setViewMode("frota")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                  viewMode === "frota"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Truck size={16} weight={viewMode === "frota" ? "fill" : "regular"} />
+                Frota ({fleetTotal})
+              </button>
+              <button
+                onClick={() => setViewMode("containers")}
+                className={`py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+                  viewMode === "containers"
+                    ? "bg-white text-emerald-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <ListBullets size={16} weight={viewMode === "containers" ? "bold" : "regular"} />
+                Fretes ({total})
+              </button>
+            </div>
+          )}
           {viewMode === "frota" && (
             <button
               onClick={() => setAllFleetMapOpen(true)}
@@ -342,110 +374,47 @@ export default function Dashboard({
           </Link>
         </div>
       </div>
-      <div className="metrics">
-        {viewMode === "frota"
-          ? [
-              {
-                title: "Frota monitorada",
-                value: fleetTotal,
-                icon: Truck,
-                sub: "Caminhões com GlobalSAT",
-              },
-              {
-                title: "Em viagem",
-                value: fleetInTransit,
-                icon: NavigationArrow,
-                sub: "Cargas em trânsito rodoviário",
-              },
-              {
-                title: "No porto / aduana",
-                value: fleetInPort,
-                icon: MapPin,
-                sub: "Em área de controle aduaneiro",
-              },
-              {
-                title: "Disponíveis",
-                value: fleetAvailable,
-                icon: CheckCircle,
-                sub: "Prontos para novo frete",
-              },
-            ].map((m, i) => (
-              <div className="metric" key={m.title}>
-                <div className="flex justify-between items-center text-slate-500 text-sm">
-                  <span>{m.title}</span>
-                  <m.icon size={20} className={i === 1 ? "text-emerald-700" : ""} />
-                </div>
-                <strong>{String(m.value).padStart(2, "0")}</strong>
-                <small>
-                  {i === 1 && <span className="status-dot" />}
-                  {m.sub}
-                </small>
-              </div>
-            ))
-          : [
-              {
-                title: "Fretes cadastrados",
-                value: total,
-                icon: Package,
-                sub: "Visibilidade de ponta a ponta",
-              },
-              {
-                title: "Em trânsito",
-                value: transit,
-                icon: Truck,
-                sub: "A caminho do portão",
-              },
-              {
-                title: "No portão",
-                value: gateCount,
-                icon: MapPin,
-                sub: "Chegada identificada por GPS",
-              },
-              {
-                title: "Entregues",
-                value: delivered,
-                icon: CheckCircle,
-                sub: "Operações concluídas",
-              },
-            ].map((m, i) => (
-              <div className="metric" key={m.title}>
-                <div className="flex justify-between items-center text-slate-500 text-sm">
-                  <span>{m.title}</span>
-                  <m.icon size={20} className={i === 2 ? "text-emerald-700" : ""} />
-                </div>
-                <strong>{String(m.value).padStart(2, "0")}</strong>
-                <small>
-                  {i === 1 && <span className="status-dot" />}
-                  {m.sub}
-                </small>
-              </div>
-            ))}
-      </div>
 
-      {!messages && (
-        <div className="flex items-center justify-between mt-6 bg-slate-200/60 p-1 rounded-xl max-w-md">
-          <button
-            onClick={() => setViewMode("frota")}
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
-              viewMode === "frota"
-                ? "bg-white text-emerald-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Truck size={17} weight={viewMode === "frota" ? "fill" : "regular"} />
-            Frota de Caminhões ({fleetTotal})
-          </button>
-          <button
-            onClick={() => setViewMode("containers")}
-            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
-              viewMode === "containers"
-                ? "bg-white text-emerald-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <ListBullets size={17} weight={viewMode === "containers" ? "bold" : "regular"} />
-            Tabela de Fretes ({total})
-          </button>
+      {!messages && viewMode === "containers" && (
+        <div className="metrics">
+          {[
+            {
+              title: "Fretes cadastrados",
+              value: total,
+              icon: Package,
+              sub: "Visibilidade de ponta a ponta",
+            },
+            {
+              title: "Em trânsito",
+              value: transit,
+              icon: Truck,
+              sub: "A caminho do portão",
+            },
+            {
+              title: "No portão",
+              value: gateCount,
+              icon: MapPin,
+              sub: "Chegada identificada por GPS",
+            },
+            {
+              title: "Entregues",
+              value: delivered,
+              icon: CheckCircle,
+              sub: "Operações concluídas",
+            },
+          ].map((m, i) => (
+            <div className="metric" key={m.title}>
+              <div className="flex justify-between items-center text-slate-500 text-sm">
+                <span>{m.title}</span>
+                <m.icon size={20} className={i === 2 ? "text-emerald-700" : ""} />
+              </div>
+              <strong>{String(m.value).padStart(2, "0")}</strong>
+              <small>
+                {i === 1 && <span className="status-dot" />}
+                {m.sub}
+              </small>
+            </div>
+          ))}
         </div>
       )}
       {!messages && viewMode === "containers" && (
@@ -743,23 +712,27 @@ export default function Dashboard({
                       </span>
                       <span
                         className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                          t.lastPosition?.health === "ONLINE"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : t.lastPosition?.health === "ATTENTION"
-                              ? "bg-amber-50 text-amber-700 border border-amber-200"
-                              : "bg-slate-100 text-slate-500 border border-slate-200"
+                          t.lastPosition?.isAtCompanyYard && t.status === "DISPONIVEL"
+                            ? "bg-slate-100 text-slate-700 border border-slate-300"
+                            : t.lastPosition?.health === "ONLINE"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : t.lastPosition?.health === "ATTENTION"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-slate-100 text-slate-500 border border-slate-200"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            t.lastPosition?.health === "ONLINE"
-                              ? "bg-emerald-500 animate-pulse"
-                              : t.lastPosition?.health === "ATTENTION"
-                                ? "bg-amber-500"
-                                : "bg-slate-400"
+                            t.lastPosition?.isAtCompanyYard && t.status === "DISPONIVEL"
+                              ? "bg-emerald-600"
+                              : t.lastPosition?.health === "ONLINE"
+                                ? "bg-emerald-500 animate-pulse"
+                                : t.lastPosition?.health === "ATTENTION"
+                                  ? "bg-amber-500"
+                                  : "bg-slate-400"
                           }`}
                         />
-                        {t.lastPosition?.healthLabel || "Sem GPS"}
+                        {t.lastPosition?.healthLabel || "Aguardando sinal"}
                       </span>
                     </div>
                   </div>
@@ -798,7 +771,11 @@ export default function Dashboard({
                       <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1 text-xs">
                         <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
                           <CheckCircle size={15} weight="fill" />
-                          <span>Caminhão livre para carregamento</span>
+                          <span>
+                            {t.lastPosition?.isAtCompanyYard
+                              ? "Estacionado no pátio da empresa"
+                              : "Caminhão livre para carregamento"}
+                          </span>
                         </div>
                         {t.tripHistory[0] ? (
                           <p className="text-[11px] text-slate-500 truncate mt-1">

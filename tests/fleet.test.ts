@@ -158,3 +158,104 @@ test("aggregateFleet filters out non-GlobalSat trucks and aggregates active/hist
   assert.equal(truck.tripHistory[0].code, "OLD123");
   assert.equal(truck.totalTripsCompleted, 1);
 });
+
+test("aggregateFleet includes all 11 AXIS fleet trucks and detects parked truck in company yard", () => {
+  const now = new Date("2026-10-08T13:30:00Z");
+
+  const drivers = [
+    { id: "d1", name: "LEONARDO GALVALISIS", phone: "", plate: "AAME593" },
+    { id: "d2", name: "CLAUDIONOR GONZALEZ", phone: "", plate: "AAME814" },
+    { id: "d3", name: "MARCELO VENTURA", phone: "", plate: "AAME899" },
+    { id: "d4", name: "VICTOR RAUL", phone: "", plate: "AARG542" },
+    { id: "d5", name: "MARCOS TASSI", phone: "", plate: "AARG801" },
+    { id: "d6", name: "GILBERTO YEGROS", phone: "", plate: "AASC676" },
+    { id: "d7", name: "ADRIANO VENTURA", phone: "", plate: "AASZ042" },
+    { id: "d8", name: "EVER STRIEDER", phone: "", plate: "AAUT382" },
+    { id: "d9", name: "VALDEMIR MARCOLA", phone: "", plate: "AAYE568" },
+    { id: "d10", name: "GUSTAVO RAMON", phone: "", plate: "ABBJ596" },
+    { id: "d11", name: "EDERSON FACHINI", phone: "", plate: "ABCD519" },
+  ];
+
+  // Marcos Tassi has completed his trip (CS-BR366200452 is ENTREGUE)
+  // and is parked at company yard (-24.25666, -54.77191)
+  const containers = [
+    {
+      id: "c-tassi",
+      code: "CS-BR366200452",
+      status: "ENTREGUE",
+      origin: "DRF.PORTO DE PARANAGUA",
+      destination: "COLONIA TIROL - ITAPUA - PARAGUAY",
+      truckPlate: "AARG801",
+      trailerPlate: "AAOA125",
+      driverId: "d5",
+      updatedAt: "2026-10-08T13:18:00Z",
+    },
+    {
+      id: "c-leo",
+      code: "MSNU6732375",
+      status: "A_CAMINHO_DESTINO",
+      origin: "DRF.PORTO DE PARANAGUA",
+      destination: "HERNANDARIAS - PARAGUAY",
+      truckPlate: "AAME593",
+      driverId: "d1",
+      updatedAt: "2026-10-08T13:20:00Z",
+    },
+  ];
+
+  const latestPositions: RawPositionFix[] = [
+    {
+      id: "pos-tassi",
+      driverId: "d5",
+      latitude: -24.25666,
+      longitude: -54.77191,
+      recordedAt: new Date("2026-10-08T13:17:56Z"),
+      source: "GLOBALSAT",
+      driverPlate: "AARG801",
+    },
+    {
+      id: "pos-leo",
+      driverId: "d1",
+      latitude: -25.409,
+      longitude: -54.64,
+      recordedAt: new Date("2026-10-08T13:25:00Z"),
+      source: "GLOBALSAT",
+      driverPlate: "AAME593",
+    },
+  ];
+
+  const fleet = aggregateFleet({
+    containers,
+    drivers,
+    latestPositions,
+    now,
+  });
+
+  // Exactly 11 trucks must be in the fleet!
+  assert.equal(fleet.length, 11);
+
+  // Marcos Tassi must be DISPONIVEL (not Em Viagem) and identified at company yard
+  const tassi = fleet.find((t) => t.plate === "AARG801");
+  assert.ok(tassi);
+  assert.equal(tassi.driver?.name, "MARCOS TASSI");
+  assert.equal(tassi.status, "DISPONIVEL");
+  assert.equal(tassi.statusLabel, "Disponível");
+  assert.equal(tassi.activeFreight, null);
+  assert.equal(tassi.tripHistory.length, 1);
+  assert.equal(tassi.tripHistory[0].code, "CS-BR366200452");
+  assert.equal(tassi.lastPosition?.isAtCompanyYard, true);
+  assert.equal(tassi.lastPosition?.healthLabel, "No pátio (estacionado)");
+
+  // Leonardo Galvalisis must be EM_VIAGEM
+  const leo = fleet.find((t) => t.plate === "AAME593");
+  assert.ok(leo);
+  assert.equal(leo.status, "EM_VIAGEM");
+  assert.equal(leo.activeFreight?.code, "MSNU6732375");
+
+  // An idle truck without recent positions must be DISPONIVEL
+  const claudionor = fleet.find((t) => t.plate === "AAME814");
+  assert.ok(claudionor);
+  assert.equal(claudionor.driver?.name, "CLAUDIONOR GONZALEZ");
+  assert.equal(claudionor.status, "DISPONIVEL");
+  assert.equal(claudionor.lastPosition, null);
+});
+
