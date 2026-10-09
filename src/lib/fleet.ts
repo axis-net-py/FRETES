@@ -130,10 +130,11 @@ export function deriveTruckStatus(
   lastPosition?: {
     isAtCompanyYard?: boolean;
     isAtAduana?: boolean;
+    cityName?: string;
     health?: GpsHealth;
   } | null,
 ): { status: TruckOperationalStatus; statusLabel: string } {
-  // Se está na aduana (ou container indica chegada em porto/aduana)
+  // 1. Se está na aduana (ou container indica chegada em porto/aduana)
   if (
     activeContainer?.status === "CHEGADA_PORTAO" ||
     activeContainer?.status === "LIBERADO" ||
@@ -142,7 +143,7 @@ export function deriveTruckStatus(
     return { status: "NO_PORTO", statusLabel: "Na Aduana" };
   }
 
-  // Se tem container ativo em trânsito
+  // 2. Se tem container ativo em trânsito
   if (
     activeContainer &&
     ["EM_TRANSITO", "A_CAMINHO_DESTINO"].includes(activeContainer.status)
@@ -150,24 +151,27 @@ export function deriveTruckStatus(
     return { status: "EM_VIAGEM", statusLabel: "Em Trânsito" };
   }
 
-  // Se está no pátio da empresa (Manu Logística / Katueté)
-  if (lastPosition?.isAtCompanyYard) {
+  // 3. Caminhões no pátio da empresa em KATUETÉ (Sede da Manu Logística)
+  // Regra operacional: Caminhão disponível no pátio são os caminhões parados em KATUETÉ, sede da MANU.
+  const isKatueteYard =
+    Boolean(lastPosition?.isAtCompanyYard) ||
+    Boolean(
+      lastPosition?.cityName &&
+        lastPosition.cityName.toLowerCase().includes("katuet"),
+    );
+
+  if (isKatueteYard) {
     return { status: "DISPONIVEL", statusLabel: "No Pátio (Katueté)" };
   }
 
-  // Se está fora do pátio e da aduana
-  if (lastPosition && !lastPosition.isAtCompanyYard && !lastPosition.isAtAduana) {
-    if (lastPosition.health === "ONLINE") {
-      return { status: "EM_VIAGEM", statusLabel: "Em Trânsito" };
-    }
-    return { status: "DISPONIVEL", statusLabel: "Desligado" };
+  // Se não tem posição GPS registrada e nem frete ativo, assume pátio
+  if (!lastPosition) {
+    return { status: "DISPONIVEL", statusLabel: "No Pátio (Katueté)" };
   }
 
-  if (activeContainer?.status === "ENTREGUE") {
-    return { status: "DISPONIVEL", statusLabel: "Disponível" };
-  }
-
-  return { status: "DISPONIVEL", statusLabel: "Disponível" };
+  // 4. Todos os demais caminhões fora de Katueté estão em viagem
+  // "Caminhão disponível no pátio são os caminhões parados em KATUETE, sede da MANU, os demais estão em viagem"
+  return { status: "EM_VIAGEM", statusLabel: "Em Trânsito" };
 }
 
 export type DriverEntity = {
@@ -214,7 +218,7 @@ export const AXIS_FLEET_PLATES = [
 export const COMPANY_YARD = {
   latitude: -24.2567,
   longitude: -54.772,
-  name: "Pátio da empresa (Katueté)",
+  name: "Pátio Manu Logística (Katueté)",
 };
 
 

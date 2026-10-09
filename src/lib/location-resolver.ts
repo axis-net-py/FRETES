@@ -17,7 +17,7 @@ export type ResolvedLocation = {
 export const LOGISTICS_HUBS = [
   {
     id: "patio-katuete",
-    name: "Manu Logística (Pátio AXIS)",
+    name: "Manu Logística (Sede Katueté)",
     city: "Katueté",
     state: "Canindeyú",
     country: "PY",

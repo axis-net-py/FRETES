@@ -721,7 +721,7 @@ export default function Dashboard({
                   <div className="flex items-center gap-2 py-2 mt-1 text-xs text-slate-700 min-w-0">
                     <MapPin size={16} weight="fill" className="text-yellow-500 shrink-0" />
                     <span className="font-semibold text-slate-900 truncate">
-                      {t.lastPosition?.cityName || t.lastPosition?.shortLabel || t.lastPosition?.locationLabel || "Pátio da Empresa"}
+                      {t.lastPosition?.cityName || t.lastPosition?.shortLabel || t.lastPosition?.locationLabel || "Katueté (Sede da MANU)"}
                     </span>
                   </div>
 
@@ -739,10 +739,22 @@ export default function Dashboard({
                           {t.activeFreight.origin || "Porto"} → <b className="text-slate-900">{t.activeFreight.destination || "Destino"}</b>
                         </div>
                       </div>
+                    ) : t.status === "DISPONIVEL" || t.lastPosition?.isAtCompanyYard || t.lastPosition?.cityName?.toLowerCase().includes("katuet") ? (
+                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/80 text-xs text-slate-600 flex items-center gap-2">
+                        <CheckCircle size={15} weight="fill" className="text-emerald-600 shrink-0" />
+                        <span className="truncate font-medium text-slate-700">Disponível no pátio · Katueté (Sede)</span>
+                      </div>
+                    ) : t.status === "NO_PORTO" || t.lastPosition?.isAtAduana ? (
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 text-xs text-amber-900 flex items-center gap-2">
+                        <Clock size={15} weight="bold" className="text-amber-600 shrink-0" />
+                        <span className="truncate font-medium">Aguardando liberação · Aduana ({t.lastPosition?.cityName || "Fronteira"})</span>
+                      </div>
                     ) : (
-                      <div className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 text-xs text-slate-500 flex items-center gap-2">
-                        <CheckCircle size={15} weight="fill" className="text-slate-400 shrink-0" />
-                        <span className="truncate">Caminhão disponível no pátio</span>
+                      <div className="p-3 rounded-xl border border-yellow-100 bg-yellow-50/50 text-xs text-slate-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shrink-0" />
+                        <span className="truncate font-medium">
+                          Em viagem de rota · {t.lastPosition?.cityName || "Em trânsito"}
+                        </span>
                       </div>
                     )}
                   </div>

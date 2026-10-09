@@ -57,12 +57,47 @@ test("deriveTruckStatus derives correct statuses", () => {
   });
   assert.deepEqual(deriveTruckStatus({ status: "ENTREGUE" }), {
     status: "DISPONIVEL",
-    statusLabel: "Disponível",
+    statusLabel: "No Pátio (Katueté)",
   });
   assert.deepEqual(deriveTruckStatus(null), {
     status: "DISPONIVEL",
-    statusLabel: "Disponível",
+    statusLabel: "No Pátio (Katueté)",
   });
+});
+
+test("deriveTruckStatus strictly enforces that only trucks in Katueté are at yard", () => {
+  // Caminhão parado no pátio em Katueté (Sede da MANU)
+  assert.deepEqual(
+    deriveTruckStatus(null, { isAtCompanyYard: true, cityName: "Katueté" }),
+    { status: "DISPONIVEL", statusLabel: "No Pátio (Katueté)" },
+  );
+
+  // Caminhão na Aduana
+  assert.deepEqual(
+    deriveTruckStatus(null, { isAtAduana: true, cityName: "Ciudad del Este" }),
+    { status: "NO_PORTO", statusLabel: "Na Aduana" },
+  );
+
+  // Caminhões fora de Katueté estão sempre em viagem, mesmo com motor desligado
+  assert.deepEqual(
+    deriveTruckStatus(null, {
+      isAtCompanyYard: false,
+      isAtAduana: false,
+      cityName: "Guaíra",
+      health: "OFFLINE",
+    }),
+    { status: "EM_VIAGEM", statusLabel: "Em Trânsito" },
+  );
+
+  assert.deepEqual(
+    deriveTruckStatus(null, {
+      isAtCompanyYard: false,
+      isAtAduana: false,
+      cityName: "Prudentópolis",
+      health: "ONLINE",
+    }),
+    { status: "EM_VIAGEM", statusLabel: "Em Trânsito" },
+  );
 });
 
 test("aggregateFleet filters out non-GlobalSat trucks and aggregates active/history", () => {
@@ -302,11 +337,11 @@ test("aggregateFleet faithfully identifies 5 in transit, 2 in customs, 4 parked/
     { id: "p3", driverId: "d3", latitude: -25.5115, longitude: -54.6030, recordedAt: new Date("2026-10-08T11:00:00Z"), source: "GLOBALSAT", driverPlate: "AAME899" },
     { id: "p7", driverId: "d7", latitude: -25.5115, longitude: -54.6030, recordedAt: new Date("2026-10-08T11:00:00Z"), source: "GLOBALSAT", driverPlate: "AASZ042" },
 
-    // 4 Desligados / Pátio
-    { id: "p4", driverId: "d4", latitude: -24.0811, longitude: -54.2567, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AARG542" },
+    // 4 Desligados / Parados no Pátio da MANU (Katueté)
+    { id: "p4", driverId: "d4", latitude: -24.25672, longitude: -54.77180, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AARG542" },
     { id: "p5", driverId: "d5", latitude: -24.25666, longitude: -54.77191, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AARG801" },
     { id: "p8", driverId: "d8", latitude: -24.25664, longitude: -54.77221, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "AAUT382" },
-    { id: "p11", driverId: "d11", latitude: -25.5383, longitude: -54.6150, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "ABCD519" },
+    { id: "p11", driverId: "d11", latitude: -24.25658, longitude: -54.77235, recordedAt: new Date("2026-10-08T09:00:00Z"), source: "GLOBALSAT", driverPlate: "ABCD519" },
   ];
 
   const fleet = aggregateFleet({ containers, drivers, latestPositions, now });
@@ -324,6 +359,32 @@ test("aggregateFleet faithfully identifies 5 in transit, 2 in customs, 4 parked/
   assert.match(fleet.find((t) => t.plate === "AAME593")?.lastPosition?.locationLabel || "", /Palmeira/);
   assert.match(fleet.find((t) => t.plate === "AAME899")?.lastPosition?.locationLabel || "", /Aduana Paraguaya/);
   assert.match(fleet.find((t) => t.plate === "AARG801")?.lastPosition?.locationLabel || "", /Katuet/);
-  assert.match(fleet.find((t) => t.plate === "AARG542")?.lastPosition?.locationLabel || "", /Gua/);
+  assert.match(fleet.find((t) => t.plate === "AARG542")?.lastPosition?.locationLabel || "", /Katuet/);
+  assert.match(fleet.find((t) => t.plate === "ABCD519")?.lastPosition?.locationLabel || "", /Katuet/);
+});
+
+test("truck stopped outside Katueté without container is marked as in transit, not in yard", () => {
+  const now = new Date("2026-10-08T14:00:00Z");
+  const drivers = [{ id: "d1", name: "DRIVER OUTSIDE", phone: "", plate: "AARG542" }];
+  const containers = [] as Parameters<typeof aggregateFleet>[0]["containers"];
+  const latestPositions: RawPositionFix[] = [
+    {
+      id: "p-guaira",
+      driverId: "d1",
+      latitude: -24.0811,
+      longitude: -54.2567, // Guaíra, PR
+      recordedAt: new Date("2026-10-08T10:00:00Z"),
+      source: "GLOBALSAT",
+      driverPlate: "AARG542",
+    },
+  ];
+
+  const fleet = aggregateFleet({ containers, drivers, latestPositions, now });
+  assert.equal(fleet.length, 1);
+  const truck = fleet[0];
+  assert.equal(truck.status, "EM_VIAGEM");
+  assert.equal(truck.statusLabel, "Em Trânsito");
+  assert.equal(truck.lastPosition?.cityName, "Guaíra");
+  assert.equal(truck.lastPosition?.isAtCompanyYard, false);
 });
 
