@@ -290,7 +290,7 @@ export default function FleetMapModal({
           const statusBg =
             t.status === "EM_VIAGEM"
               ? "#eab308"
-              : t.status === "NO_PORTO"
+              : t.status === "NA_ADUANA"
                 ? "#2563eb"
                 : "#475569";
 
@@ -391,8 +391,8 @@ export default function FleetMapModal({
                     className={`badge text-[10px] py-0.5 px-2 ${
                       truck.status === "EM_VIAGEM"
                         ? "a_caminho_destino"
-                        : truck.status === "NO_PORTO"
-                          ? "chegada_portao"
+                        : truck.status === "NA_ADUANA"
+                          ? "na_aduana"
                           : "entregue"
                     }`}
                   >
@@ -469,7 +469,7 @@ export default function FleetMapModal({
                   className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                     truck.status === "EM_VIAGEM"
                       ? "bg-yellow-500 animate-pulse"
-                      : truck.status === "NO_PORTO"
+                      : truck.status === "NA_ADUANA"
                         ? "bg-blue-600"
                         : "bg-slate-500"
                   }`}
@@ -574,7 +574,7 @@ export default function FleetMapModal({
                     className={`w-2 h-2 rounded-full ${
                       truck.status === "EM_VIAGEM"
                         ? "bg-yellow-500"
-                        : truck.status === "NO_PORTO"
+                        : truck.status === "NA_ADUANA"
                           ? "bg-blue-600"
                           : "bg-slate-500"
                     }`}
@@ -646,7 +646,7 @@ export default function FleetMapModal({
               </span>
               <span className="flex items-center gap-1.5 font-medium">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
-                Aduana ({allTrucks.filter((t) => t.status === "NO_PORTO").length})
+                Aduana ({allTrucks.filter((t) => t.status === "NA_ADUANA").length})
               </span>
               <span className="flex items-center gap-1.5 font-medium">
                 <span className="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block" />

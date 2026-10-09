@@ -425,6 +425,7 @@ h2 {
   background: #eab308;
 }
 .badge.chegada_portao,
+.badge.na_aduana,
 .badge.no_porto {
   background: #e0f2fe;
   color: #0369a1;

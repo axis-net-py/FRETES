@@ -48,11 +48,11 @@ test("deriveTruckStatus derives correct statuses", () => {
     statusLabel: "Em Trânsito",
   });
   assert.deepEqual(deriveTruckStatus({ status: "CHEGADA_PORTAO" }), {
-    status: "NO_PORTO",
+    status: "NA_ADUANA",
     statusLabel: "Na Aduana",
   });
   assert.deepEqual(deriveTruckStatus({ status: "LIBERADO" }), {
-    status: "NO_PORTO",
+    status: "NA_ADUANA",
     statusLabel: "Na Aduana",
   });
   assert.deepEqual(deriveTruckStatus({ status: "ENTREGUE" }), {
@@ -75,7 +75,7 @@ test("deriveTruckStatus strictly enforces that only trucks in Katueté are at ya
   // Caminhão na Aduana
   assert.deepEqual(
     deriveTruckStatus(null, { isAtAduana: true, cityName: "Ciudad del Este" }),
-    { status: "NO_PORTO", statusLabel: "Na Aduana" },
+    { status: "NA_ADUANA", statusLabel: "Na Aduana" },
   );
 
   // Caminhões fora de Katueté estão sempre em viagem, mesmo com motor desligado
@@ -348,7 +348,7 @@ test("aggregateFleet faithfully identifies 5 in transit, 2 in customs, 4 parked/
   assert.equal(fleet.length, 11);
 
   const inTransit = fleet.filter((t) => t.status === "EM_VIAGEM");
-  const inCustoms = fleet.filter((t) => t.status === "NO_PORTO");
+  const inCustoms = fleet.filter((t) => t.status === "NA_ADUANA");
   const idle = fleet.filter((t) => t.status === "DISPONIVEL");
 
   assert.equal(inTransit.length, 5);

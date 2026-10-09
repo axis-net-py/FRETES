@@ -195,7 +195,7 @@ export default function Dashboard({
   const fleet = data.fleet || [];
   const fleetTotal = fleet.length;
   const fleetInTransit = fleet.filter((t) => t.status === "EM_VIAGEM").length;
-  const fleetInPort = fleet.filter((t) => t.status === "NO_PORTO").length;
+  const fleetInCustoms = fleet.filter((t) => t.status === "NA_ADUANA").length;
   const fleetAvailable = fleet.filter((t) => t.status === "DISPONIVEL").length;
 
   const filteredFleet = fleet.filter((t) => {
@@ -639,7 +639,7 @@ export default function Dashboard({
               {[
                 ["TODOS", `Todos (${fleetTotal})`],
                 ["EM_VIAGEM", `Em Trânsito (${fleetInTransit})`],
-                ["NO_PORTO", `Na Aduana (${fleetInPort})`],
+                ["NA_ADUANA", `Na Aduana (${fleetInCustoms})`],
                 ["DISPONIVEL", `Pátio (${fleetAvailable})`],
               ].map(([v, l]) => (
                 <button
@@ -706,8 +706,8 @@ export default function Dashboard({
                         className={`badge ${
                           t.status === "EM_VIAGEM"
                             ? "em_viagem"
-                            : t.status === "NO_PORTO"
-                              ? "no_porto"
+                            : t.status === "NA_ADUANA"
+                              ? "na_aduana"
                               : "disponivel"
                         }`}
                       >
@@ -744,7 +744,7 @@ export default function Dashboard({
                         <CheckCircle size={15} weight="fill" className="text-emerald-600 shrink-0" />
                         <span className="truncate font-medium text-slate-700">Disponível no pátio · Katueté (Sede)</span>
                       </div>
-                    ) : t.status === "NO_PORTO" || t.lastPosition?.isAtAduana ? (
+                    ) : t.status === "NA_ADUANA" || t.lastPosition?.isAtAduana ? (
                       <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/60 text-xs text-amber-900 flex items-center gap-2">
                         <Clock size={15} weight="bold" className="text-amber-600 shrink-0" />
                         <span className="truncate font-medium">Aguardando liberação · Aduana ({t.lastPosition?.cityName || "Fronteira"})</span>

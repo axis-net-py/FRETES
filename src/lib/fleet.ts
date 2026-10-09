@@ -4,7 +4,7 @@ export type GpsHealth = "ONLINE" | "ATTENTION" | "OFFLINE";
 
 export type TruckOperationalStatus =
   | "EM_VIAGEM"
-  | "NO_PORTO"
+  | "NA_ADUANA"
   | "DISPONIVEL"
   | "SEM_FRETE";
 
@@ -140,7 +140,7 @@ export function deriveTruckStatus(
     activeContainer?.status === "LIBERADO" ||
     lastPosition?.isAtAduana
   ) {
-    return { status: "NO_PORTO", statusLabel: "Na Aduana" };
+    return { status: "NA_ADUANA", statusLabel: "Na Aduana" };
   }
 
   // 2. Se tem container ativo em trânsito
@@ -406,10 +406,10 @@ export function aggregateFleet({
     });
   }
 
-  // Sort: Em Viagem first, then No Porto, then Disponivel, then by plate
+  // Sort: Em Viagem first, then Na Aduana, then Disponivel, then by plate
   const statusOrder: Record<TruckOperationalStatus, number> = {
     EM_VIAGEM: 1,
-    NO_PORTO: 2,
+    NA_ADUANA: 2,
     DISPONIVEL: 3,
     SEM_FRETE: 4,
   };
