@@ -69,7 +69,7 @@ export function destinationGateMatches(
 }
 
 // Builds the complete, ordered list of gates for a specific freight:
-// 1. Appropriate port gate (TPC for container, APPA for loose cargo)
+// 1. Appropriate port gate (TPC for container, APPA for loose cargo, or Santos when designated)
 // 2. Intermediate checkpoint gates (Multilog, Customs, etc.)
 // 3. Destination gate matching the container's destination city
 export function journeyGatesFor<T extends JourneyGate>(
@@ -77,6 +77,7 @@ export function journeyGatesFor<T extends JourneyGate>(
   code?: string | null,
   destination?: string | null,
   geofenceId?: string | null,
+  origin?: string | null,
 ): T[] {
   const wanted = portGateKindFor(code);
   const portGates = gates.filter(
@@ -93,8 +94,32 @@ export function journeyGatesFor<T extends JourneyGate>(
       gate.kind === "DESTINATION" &&
       destinationGateMatches(gate, destination, geofenceId),
   );
-  const prioritizedPort =
-    portGates.find((g) => g.kind === wanted) || portGates[0];
+
+  const isSantos = Boolean(origin && origin.toUpperCase().includes("SANTOS"));
+  let prioritizedPort: T | undefined;
+
+  if (geofenceId) {
+    prioritizedPort = portGates.find((g) => g.id === geofenceId);
+  }
+
+  if (!prioritizedPort) {
+    if (isSantos) {
+      prioritizedPort =
+        portGates.find((g) => (g.name || "").toUpperCase().includes("SANTOS")) ||
+        portGates.find((g) => g.kind === wanted) ||
+        portGates[0];
+    } else {
+      // Paranaguá (default or explicit)
+      const nonSantosPortGates = portGates.filter(
+        (g) => !(g.name || "").toUpperCase().includes("SANTOS"),
+      );
+      const candidatePorts =
+        nonSantosPortGates.length > 0 ? nonSantosPortGates : portGates;
+      prioritizedPort =
+        candidatePorts.find((g) => g.kind === wanted) || candidatePorts[0];
+    }
+  }
+
   const matchingDestination = destinationGates[0];
 
   return [
@@ -112,8 +137,9 @@ export function journeyTarget<T extends JourneyGate>(
   code?: string | null,
   destination?: string | null,
   geofenceId?: string | null,
+  origin?: string | null,
 ): T | null {
-  const ordered = journeyGatesFor(gates, code, destination, geofenceId);
+  const ordered = journeyGatesFor(gates, code, destination, geofenceId, origin);
   return ordered.find((gate) => !gateCompleted(gate, events)) || null;
 }
 
@@ -153,15 +179,24 @@ export function formatEventAt(at?: Date): string {
   return ` em ${date} às ${time}`;
 }
 
-export function eventMessage(kind: string, at?: Date): EventMessage {
+export function eventMessage(
+  kind: string,
+  at?: Date,
+  portOrOrigin?: string,
+): EventMessage {
   const when = formatEventAt(at);
   switch (kind) {
-    case "DEPARTURE":
+    case "DEPARTURE": {
+      const isSantos = Boolean(
+        portOrOrigin && portOrOrigin.toUpperCase().includes("SANTOS"),
+      );
+      const portName = isSantos ? "Porto de Santos" : "Porto de Paranaguá";
       return {
-        eventText: `saiu do Porto de Paranaguá e iniciou o trajeto${when}`,
+        eventText: `saiu do ${portName} e iniciou o trajeto${when}`,
         subject: "Saída do porto",
-        headline: "Saída do porto confirmada pelo rastreamento.",
+        headline: `Saída do ${portName} confirmada pelo rastreamento.`,
       };
+    }
     case "MULTILOG_ARRIVAL":
       return {
         eventText: `chegou à Multilog${when}`,

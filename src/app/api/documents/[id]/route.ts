@@ -4,7 +4,7 @@ import { z } from "zod";
 import { documentFieldsSchema } from "@/lib/document-fields";
 import { apiError } from "@/lib/api";
 import { resolveImportRecords, ImportConflict } from "@/lib/import-records";
-import { findParanaguaGate } from "@/lib/route-estimate";
+import { findParanaguaGate, findPortGate } from "@/lib/route-estimate";
 import { adminRequestError } from "@/lib/admin-request";
 const schema = z.object({
   fields: documentFieldsSchema,
@@ -86,15 +86,17 @@ export async function POST(
     );
   try {
     const d = p.data;
-    const gate = findParanaguaGate(
-      await prisma.geofence.findMany({
-        where: { active: true },
-        orderBy: { createdAt: "asc" },
-      }),
-    );
+    const gates = await prisma.geofence.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const gate =
+      (d.geofenceId ? gates.find((g) => g.id === d.geofenceId) : null) ||
+      findPortGate(gates, d.fields.origin) ||
+      findParanaguaGate(gates);
     if (!gate)
       return NextResponse.json(
-        { error: "Cadastre e ative o portão do Porto de Paranaguá." },
+        { error: "Cadastre e ative o portão de saída do porto." },
         { status: 422 },
       );
     if (!!d.routeDurationSeconds !== !!d.operationalMarginSeconds)

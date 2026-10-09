@@ -62,6 +62,7 @@ export type FleetVehicle = {
     healthLabel: string;
     isAtCompanyYard?: boolean;
     isAtAduana?: boolean;
+    isAtPort?: boolean;
     cityName?: string;
     locationLabel?: string;
     shortLabel?: string;
@@ -358,6 +359,8 @@ export function aggregateFleet({
         healthLabel = "No pátio (desligado)";
       } else if (loc.isAtAduana) {
         healthLabel = "Na aduana (parado)";
+      } else if (loc.isAtPort) {
+        healthLabel = "No porto (carregando/parado)";
       } else if (healthInfo.health === "OFFLINE") {
         healthLabel = "Motor desligado";
       }
@@ -371,6 +374,7 @@ export function aggregateFleet({
         healthLabel,
         isAtCompanyYard: loc.isAtCompanyYard,
         isAtAduana: loc.isAtAduana,
+        isAtPort: loc.isAtPort,
         cityName: loc.cityName,
         locationLabel: loc.locationLabel,
         shortLabel: loc.shortLabel,

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
 import { adminRequestError } from "@/lib/admin-request";
-import { findParanaguaGate } from "@/lib/route-estimate";
+import { findParanaguaGate, findPortGate } from "@/lib/route-estimate";
 import { normalizePlate } from "@/lib/driver-match";
 
 const schema = z
@@ -82,15 +82,15 @@ export async function PATCH(
         { status: 400 },
       );
 
-    const gate = findParanaguaGate(
-      await prisma.geofence.findMany({
-        where: { active: true },
-        orderBy: { createdAt: "asc" },
-      }),
-    );
+    const gates = await prisma.geofence.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const gate =
+      findPortGate(gates, parsed.data.origin) || findParanaguaGate(gates);
     if (!gate)
       return NextResponse.json(
-        { error: "Cadastre e ative o portão de Paranaguá." },
+        { error: "Cadastre e ative o portão de saída do porto." },
         { status: 422 },
       );
     const updated = await prisma.$transaction(async (tx) => {

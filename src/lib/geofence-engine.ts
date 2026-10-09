@@ -18,6 +18,7 @@ type CheckpointContainer = {
   id: string;
   code: string;
   status: string;
+  origin?: string | null;
   destination: string | null;
   geofenceId?: string | null;
   transitHours: number | null;
@@ -71,7 +72,7 @@ async function notifyCheckpoint(
 ): Promise<CheckpointOutcome> {
   const { gate, event, at, input, container: c } = args;
   const kind = notificationKindFor(gate.kind, event);
-  const msg = eventMessage(kind, at);
+  const msg = eventMessage(kind, at, gate.name || c.origin || undefined);
   const plates = [c.truckPlate, c.trailerPlate].filter(Boolean).join(" / ");
   const crewLine = c.driver?.name
     ? `${c.driver.name} com caminhão ${plates}`
@@ -299,6 +300,26 @@ export async function processPosition(
         orderBy: { createdAt: "asc" },
       });
       if (!gates.length) return null;
+      if (!gates.some((g) => (g.name || "").toUpperCase().includes("SANTOS"))) {
+        try {
+          const santosGate = await tx.geofence.create({
+            data: {
+              name: "Porto de Santos",
+              kind: "PORT_EXIT",
+              latitude: -23.94215,
+              longitude: -46.31056,
+              radiusM: 3500,
+              notifyOnEnter: false,
+              notifyOnExit: true,
+              active: true,
+              status: "CHEGADA_PORTAO",
+            },
+          });
+          gates.push(santosGate);
+        } catch {
+          // ignore duplicate/concurrency
+        }
+      }
       const multilogGate = gates.find(
         (g) => g.kind === "MULTILOG" && !g.notifyOnExit,
       );
@@ -318,6 +339,7 @@ export async function processPosition(
         c.code,
         c.destination,
         c.geofenceId,
+        c.origin,
       );
       if (!journeyGates.length) return null;
 
@@ -339,6 +361,7 @@ export async function processPosition(
             c.code,
             c.destination,
             c.geofenceId,
+            c.origin,
           );
       }
 
@@ -349,6 +372,7 @@ export async function processPosition(
           c.code,
           c.destination,
           c.geofenceId,
+          c.origin,
         );
         if (target && reliableInside(input, target, evaluationNow)) {
           gate = target;

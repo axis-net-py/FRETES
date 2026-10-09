@@ -388,3 +388,44 @@ test("truck stopped outside Katueté without container is marked as in transit, 
   assert.equal(truck.lastPosition?.isAtCompanyYard, false);
 });
 
+test("Leonardo Galvalisis at Porto de Santos is resolved accurately with port hub location", () => {
+  const now = new Date("2026-10-09T14:00:00Z");
+  const drivers = [
+    { id: "d1", name: "LEONARDO GALVALISIS", phone: "", plate: "AAME593" },
+  ];
+  const containers = [
+    {
+      id: "c-leo-santos",
+      code: "MSNU6732375",
+      status: "CHEGADA_PORTAO",
+      origin: "Porto de Santos",
+      destination: "HERNANDARIAS - PARAGUAY",
+      truckPlate: "AAME593",
+      driverId: "d1",
+      updatedAt: "2026-10-09T13:30:00Z",
+    },
+  ];
+  const latestPositions: RawPositionFix[] = [
+    {
+      id: "p-santos",
+      driverId: "d1",
+      latitude: -23.94215,
+      longitude: -46.31056,
+      recordedAt: new Date("2026-10-09T13:45:00Z"),
+      source: "GLOBALSAT",
+      driverPlate: "AAME593",
+    },
+  ];
+
+  const fleet = aggregateFleet({ containers, drivers, latestPositions, now });
+  assert.equal(fleet.length, 1);
+  const truck = fleet[0];
+  assert.equal(truck.plate, "AAME593");
+  assert.equal(truck.driver?.name, "LEONARDO GALVALISIS");
+  assert.equal(truck.status, "NA_ADUANA");
+  assert.equal(truck.lastPosition?.cityName, "Santos");
+  assert.equal(truck.lastPosition?.isAtPort, true);
+  assert.match(truck.lastPosition?.locationLabel || "", /Porto de Santos/);
+  assert.equal(truck.lastPosition?.healthLabel, "No porto (carregando/parado)");
+});
+

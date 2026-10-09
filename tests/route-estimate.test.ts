@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   estimateRouteHours,
   findParanaguaGate,
+  findPortGate,
   routePlanning,
 } from "../src/lib/route-estimate.ts";
 
@@ -99,3 +100,35 @@ test("selects the active Paranagua port gate", () => {
   ]);
   assert.equal(gate?.id, "paranagua");
 });
+
+test("findPortGate selects Santos gate when origin mentions Santos and falls back to Paranagua", () => {
+  const gates = [
+    {
+      id: "paranagua",
+      name: "Porto de Paranaguá",
+      active: true,
+      latitude: -25.5005,
+      longitude: -48.5135,
+    },
+    {
+      id: "santos",
+      name: "Porto de Santos",
+      active: true,
+      latitude: -23.94215,
+      longitude: -46.31056,
+    },
+  ];
+
+  const santosGate = findPortGate(gates, "Porto de Santos");
+  assert.equal(santosGate?.id, "santos");
+
+  const santosShortGate = findPortGate(gates, "SANTOS - SP");
+  assert.equal(santosShortGate?.id, "santos");
+
+  const defaultGate = findPortGate(gates, "China");
+  assert.equal(defaultGate?.id, "paranagua");
+
+  const nullGate = findPortGate(gates, null);
+  assert.equal(nullGate?.id, "paranagua");
+});
+

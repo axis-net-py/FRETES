@@ -301,3 +301,49 @@ test("destination arrival and departure notifications format correctly", () => {
   assert.ok(departure.headline.includes("frete concluído"));
 });
 
+test("departure message dynamically supports Porto de Santos", () => {
+  const at = new Date("2026-10-09T14:30:00.000Z");
+  const departureSantos = eventMessage("DEPARTURE", at, "Porto de Santos");
+  assert.ok(departureSantos.eventText.includes("saiu do Porto de Santos e iniciou o trajeto"));
+  assert.equal(departureSantos.subject, "Saída do porto");
+  assert.ok(departureSantos.headline.includes("Porto de Santos"));
+
+  const departureShort = eventMessage("DEPARTURE", at, "Santos");
+  assert.ok(departureShort.eventText.includes("saiu do Porto de Santos e iniciou o trajeto"));
+
+  const departureParanagua = eventMessage("DEPARTURE", at);
+  assert.ok(departureParanagua.eventText.includes("saiu do Porto de Paranaguá e iniciou o trajeto"));
+
+  const updateMessage = formatUpdateMessage([
+    "container MSNU6732375 (lacre 123456)",
+    departureSantos.eventText,
+    "LEONARDO GALVALISIS com caminhão AAME593 / AASV276",
+    "COTRIPAR com destino HERNANDARIAS - PY",
+    "11/10/2026 18:00 (horário de Brasília; estimativa)",
+    "https://axis-fretes.vercel.app/acompanhar#token123",
+  ]);
+  assert.ok(updateMessage.startsWith("Atualização de frete da Manu Logistica EAS:"));
+  assert.ok(updateMessage.includes("a carga container MSNU6732375 (lacre 123456) saiu do Porto de Santos e iniciou o trajeto"));
+  assert.ok(updateMessage.includes("Motorista LEONARDO GALVALISIS com caminhão AAME593 / AASV276"));
+  assert.ok(updateMessage.includes("em direção ao cliente COTRIPAR com destino HERNANDARIAS - PY"));
+  assert.ok(updateMessage.includes("Acompanhe o trajeto: https://axis-fretes.vercel.app/acompanhar#token123"));
+});
+
+test("journeyGatesFor prioritizes Porto de Santos when origin mentions Santos", () => {
+  const gatesWithSantos: JourneyGate[] = [
+    { id: "tpc", name: "Paranaguá TPC", kind: "PORT_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "santos", name: "Porto de Santos", kind: "PORT_EXIT", notifyOnEnter: false, notifyOnExit: true },
+    { id: "multi", name: "Multilog", kind: "MULTILOG", notifyOnEnter: true, notifyOnExit: false },
+    { id: "entry", name: "Aduana Entrada", kind: "CUSTOMS_ENTRY", notifyOnEnter: true, notifyOnExit: false },
+  ];
+
+  // When freight origin is Santos
+  const santosGates = journeyGatesFor(gatesWithSantos, "MSNU6732375", "HERNANDARIAS - PY", null, "Porto de Santos");
+  assert.equal(santosGates[0].id, "santos");
+  assert.equal(journeyTarget(gatesWithSantos, [], "MSNU6732375", "HERNANDARIAS - PY", null, "Porto de Santos")?.id, "santos");
+
+  // When freight origin is default / Paranaguá
+  const paranaguaGates = journeyGatesFor(gatesWithSantos, "MSNU6732375", "HERNANDARIAS - PY", null, "China");
+  assert.equal(paranaguaGates[0].id, "tpc");
+});
+

@@ -19,6 +19,27 @@ export function findParanaguaGate<T extends GateCandidate>(gates: T[]) {
   });
 }
 
+export function findPortGate<T extends GateCandidate>(
+  gates: T[],
+  origin?: string | null,
+) {
+  const normOrigin = (origin || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  if (normOrigin.includes("SANTOS")) {
+    const santosGate = gates.find((gate) => {
+      const name = gate.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase();
+      return gate.active && name.includes("SANTOS");
+    });
+    if (santosGate) return santosGate;
+  }
+  return findParanaguaGate(gates);
+}
+
 type FetchLike = (
   input: string | URL | Request,
   init?: RequestInit,

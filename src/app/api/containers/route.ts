@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
-import { findParanaguaGate } from "@/lib/route-estimate";
+import { findParanaguaGate, findPortGate } from "@/lib/route-estimate";
 import { normalizePlate } from "@/lib/driver-match";
 const schema = z.object({
   code: z
@@ -40,15 +40,17 @@ export async function POST(req: Request) {
       { error: p.error.issues[0].message },
       { status: 400 },
     );
-  const gate = findParanaguaGate(
-    await prisma.geofence.findMany({
-      where: { active: true },
-      orderBy: { createdAt: "asc" },
-    }),
-  );
+  const gates = await prisma.geofence.findMany({
+    where: { active: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const gate =
+    (p.data.geofenceId ? gates.find((g) => g.id === p.data.geofenceId) : null) ||
+    findPortGate(gates, p.data.origin) ||
+    findParanaguaGate(gates);
   if (!gate)
     return NextResponse.json(
-      { error: "Cadastre e ative o portão de Paranaguá." },
+      { error: "Cadastre e ative o portão de saída do porto." },
       { status: 400 },
     );
   try {

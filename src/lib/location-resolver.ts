@@ -60,6 +60,17 @@ export const LOGISTICS_HUBS = [
     type: "PORT" as const,
   },
   {
+    id: "porto-santos",
+    name: "Porto de Santos",
+    city: "Santos",
+    state: "SP",
+    country: "BR",
+    latitude: -23.94215,
+    longitude: -46.31056,
+    radiusM: 3500,
+    type: "PORT" as const,
+  },
+  {
     id: "multilog-sjp",
     name: "Multilog",
     city: "São José dos Pinhais",
@@ -136,6 +147,20 @@ export const LOGISTICS_CITIES = [
   { name: "Campo Mourão", state: "PR", country: "BR", latitude: -24.0456, longitude: -52.3789 },
   { name: "Umuarama", state: "PR", country: "BR", latitude: -23.7661, longitude: -53.325 },
   { name: "Londrina", state: "PR", country: "BR", latitude: -23.3103, longitude: -51.1628 },
+
+  // SÃO PAULO (Corredor Porto de Santos / Baixada Santista e BR-116 Régis Bittencourt)
+  { name: "Santos", state: "SP", country: "BR", latitude: -23.9608, longitude: -46.3336 },
+  { name: "Cubatão", state: "SP", country: "BR", latitude: -23.8953, longitude: -46.4253 },
+  { name: "São Vicente", state: "SP", country: "BR", latitude: -23.9631, longitude: -46.3919 },
+  { name: "Praia Grande", state: "SP", country: "BR", latitude: -24.0058, longitude: -46.4028 },
+  { name: "Guarujá", state: "SP", country: "BR", latitude: -23.9931, longitude: -46.2564 },
+  { name: "São Paulo", state: "SP", country: "BR", latitude: -23.5505, longitude: -46.6333 },
+  { name: "São Bernardo do Campo", state: "SP", country: "BR", latitude: -23.6944, longitude: -46.5653 },
+  { name: "Juquitiba", state: "SP", country: "BR", latitude: -23.9317, longitude: -47.0706 },
+  { name: "Miracatu", state: "SP", country: "BR", latitude: -24.2819, longitude: -47.4597 },
+  { name: "Registro", state: "SP", country: "BR", latitude: -24.4881, longitude: -47.8436 },
+  { name: "Cajati", state: "SP", country: "BR", latitude: -24.7364, longitude: -48.1228 },
+  { name: "Barra do Turvo", state: "SP", country: "BR", latitude: -24.7578, longitude: -48.5042 },
 
   // MATO GROSSO DO SUL
   { name: "Mundo Novo", state: "MS", country: "BR", latitude: -23.9422, longitude: -54.2711 },

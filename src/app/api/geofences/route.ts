@@ -35,7 +35,9 @@ export async function POST(req: Request) {
         (g) =>
           normalizeName(g.name) === name ||
           (name.includes("PARANAGUA") &&
-            normalizeName(g.name).includes("PARANAGUA")),
+            normalizeName(g.name).includes("PARANAGUA")) ||
+          (name.includes("SANTOS") &&
+            normalizeName(g.name).includes("SANTOS")),
       );
       if (existing) return { gate: existing, created: false };
       let { kind, notifyOnEnter, notifyOnExit } = p.data;
@@ -43,7 +45,11 @@ export async function POST(req: Request) {
         notifyOnEnter = true;
         notifyOnExit = true;
       } else if (kind === "CHECKPOINT") {
-        if (name.includes("PARANAGUA") || name.includes("TPC")) {
+        if (
+          name.includes("PARANAGUA") ||
+          name.includes("TPC") ||
+          name.includes("SANTOS")
+        ) {
           kind = "PORT_EXIT";
           notifyOnEnter = false;
           notifyOnExit = true;

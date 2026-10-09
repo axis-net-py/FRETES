@@ -81,18 +81,50 @@ export async function GET(
   const trail = [...positions].reverse();
   const current = positions[0] || null;
 
-  // 5. Origin coordinates (Port of Paranaguá)
-  const portGeofence = await prisma.geofence.findFirst({
-    where: { kind: "PORT_EXIT", active: true },
-    select: { name: true, latitude: true, longitude: true, radiusM: true },
-  });
+  // 5. Origin coordinates (Port of Santos or Port of Paranaguá)
+  const isSantos =
+    Boolean(latestContainer?.origin && latestContainer.origin.toUpperCase().includes("SANTOS")) ||
+    Boolean(
+      current &&
+        current.latitude > -24.3 &&
+        current.latitude < -23.7 &&
+        current.longitude > -46.6 &&
+        current.longitude < -46.1,
+    );
 
-  const origin = portGeofence || {
-    name: "Porto de Paranaguá",
-    latitude: -25.5005,
-    longitude: -48.5135,
-    radiusM: 500,
-  };
+  const portGeofence = isSantos
+    ? await prisma.geofence.findFirst({
+        where: {
+          kind: "PORT_EXIT",
+          active: true,
+          name: { contains: "Santos", mode: "insensitive" },
+        },
+        select: { name: true, latitude: true, longitude: true, radiusM: true },
+      })
+    : await prisma.geofence.findFirst({
+        where: {
+          kind: "PORT_EXIT",
+          active: true,
+          NOT: { name: { contains: "Santos", mode: "insensitive" } },
+        },
+        select: { name: true, latitude: true, longitude: true, radiusM: true },
+      });
+
+  const origin =
+    portGeofence ||
+    (isSantos
+      ? {
+          name: "Porto de Santos",
+          latitude: -23.94215,
+          longitude: -46.31056,
+          radiusM: 3500,
+        }
+      : {
+          name: "Porto de Paranaguá",
+          latitude: -25.5005,
+          longitude: -48.5135,
+          radiusM: 500,
+        });
 
   // 6. Destination coordinates matching
   let destinationGeofence = null;

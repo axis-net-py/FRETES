@@ -4,12 +4,14 @@ import { prisma } from "@/lib/prisma";
 import {
   estimateRouteHours,
   findParanaguaGate,
+  findPortGate,
   RouteEstimateError,
 } from "@/lib/route-estimate";
 import { apiError } from "@/lib/api";
 
 const schema = z.object({
   destination: z.string().trim().min(2).max(160),
+  origin: z.string().trim().max(160).optional(),
 });
 
 export async function POST(req: Request) {
@@ -32,7 +34,8 @@ export async function POST(req: Request) {
         longitude: true,
       },
     });
-    const gate = findParanaguaGate(gates);
+    const gate =
+      findPortGate(gates, parsed.data.origin) || findParanaguaGate(gates);
     if (!gate)
       return NextResponse.json(
         { error: "Cadastre e ative o portão de Paranaguá." },

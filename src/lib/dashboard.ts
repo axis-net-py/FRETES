@@ -2,7 +2,34 @@ import { prisma } from "./prisma";
 import { dashboardGlobalSatState } from "./globalsat-status";
 import { aggregateFleet, type RawPositionFix } from "./fleet";
 
+export async function ensureDefaultPortGates() {
+  try {
+    const existing = await prisma.geofence.findFirst({
+      where: { name: { contains: "Santos", mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (!existing) {
+      await prisma.geofence.create({
+        data: {
+          name: "Porto de Santos",
+          kind: "PORT_EXIT",
+          latitude: -23.94215,
+          longitude: -46.31056,
+          radiusM: 3500,
+          notifyOnEnter: false,
+          notifyOnExit: true,
+          active: true,
+          status: "CHEGADA_PORTAO",
+        },
+      });
+    }
+  } catch {
+    // ignore concurrency/DB errors
+  }
+}
+
 export async function getDashboard() {
+  await ensureDefaultPortGates();
   const [containers, clients, drivers, gates, notifications, globalSatState, latestPositions] =
     await Promise.all([
       prisma.container.findMany({
