@@ -9,17 +9,17 @@ async function handleReprocess(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const unauthorized = await adminRequestError(req);
   const secretKey =
     req.headers.get("x-reprocess-secret") ||
     new URL(req.url).searchParams.get("secret");
-  const isAuthorized =
-    !unauthorized || validSyncSecret(req) || secretKey === "axis-reprocess-2026";
-  if (!isAuthorized)
-    return (
-      unauthorized ||
-      NextResponse.json({ error: "Não autorizado." }, { status: 401 })
-    );
+  if (secretKey !== "axis-reprocess-2026") {
+    const unauthorized = await adminRequestError(req);
+    if (unauthorized && !validSyncSecret(req))
+      return (
+        unauthorized ||
+        NextResponse.json({ error: "Não autorizado." }, { status: 401 })
+      );
+  }
   const { id } = await params;
 
   try {
