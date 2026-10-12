@@ -13,6 +13,7 @@ export async function middleware(req: NextRequest) {
     "/acompanhar",
     "/api/customer-tracking",
     "/api/integrations/globalsat/cron",
+    "/api/integrations/globalsat/sync",
   ].some((x) => p === x || p.startsWith(x + "/"));
   const isReprocess =
     p.includes("/reprocess") &&
