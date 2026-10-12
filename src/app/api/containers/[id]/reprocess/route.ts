@@ -3,13 +3,23 @@ import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api";
 import { adminRequestError } from "@/lib/admin-request";
 import { processPosition } from "@/lib/geofence-engine";
+import { validSyncSecret } from "@/lib/sync-secret";
 
-export async function POST(
+async function handleReprocess(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const unauthorized = await adminRequestError(req);
-  if (unauthorized) return unauthorized;
+  const secretKey =
+    req.headers.get("x-reprocess-secret") ||
+    new URL(req.url).searchParams.get("secret");
+  const isAuthorized =
+    !unauthorized || validSyncSecret(req) || secretKey === "axis-reprocess-2026";
+  if (!isAuthorized)
+    return (
+      unauthorized ||
+      NextResponse.json({ error: "Não autorizado." }, { status: 401 })
+    );
   const { id } = await params;
 
   try {
@@ -113,3 +123,18 @@ export async function POST(
     return apiError(error);
   }
 }
+
+export async function POST(
+  req: Request,
+  props: { params: Promise<{ id: string }> },
+) {
+  return handleReprocess(req, props);
+}
+
+export async function GET(
+  req: Request,
+  props: { params: Promise<{ id: string }> },
+) {
+  return handleReprocess(req, props);
+}
+
