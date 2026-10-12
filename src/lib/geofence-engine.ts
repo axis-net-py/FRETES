@@ -98,6 +98,7 @@ async function notifyCheckpoint(
         status: "A_CAMINHO_DESTINO",
         departedAt,
         estimatedArrivalAt,
+        geofenceId: gate.id,
         exitCandidateAt: null,
         gateEnteredAt: null,
         customerTrackingHash: createHash("sha256")
@@ -191,11 +192,13 @@ async function notifyCheckpoint(
         ? "CHEGADA_PORTAO"
         : c.status;
 
-  // DEDUPLICATION: Ensure exactly one notification per event kind per freight
+  // DEDUPLICATION: Ensure exactly one SUCCESSFUL notification per event kind per freight within 12h
   const alreadyNotified = await tx.notification.findFirst({
     where: {
       containerId: c.id,
       kind,
+      status: "ACCEPTED",
+      createdAt: { gte: new Date(at.getTime() - 12 * 3600 * 1000) },
     },
     select: { id: true },
   });
@@ -354,6 +357,7 @@ export async function processPosition(
           orderBy: { createdAt: "desc" },
         });
         gate =
+          gates.find((g) => g.id === lastEnter?.geofenceId) ||
           journeyGates.find((g) => g.id === lastEnter?.geofenceId) ||
           journeyTarget(
             gates,
@@ -363,6 +367,21 @@ export async function processPosition(
             c.geofenceId,
             c.origin,
           );
+      }
+
+      // Dynamic port gate detection:
+      // If the truck is physically inside any active port gate (e.g. Santos, Paranaguá, APPA),
+      // prioritize that port gate. This handles freights where the container's initial origin
+      // or legacy geofenceId pointed to Paranaguá but the truck loaded/departed at Santos (or vice-versa).
+      if (!gate || (c.gateEnteredAt && !reliableInside(input, gate, evaluationNow))) {
+        const portGateInside = gates.find(
+          (g) =>
+            (g.kind === "PORT_EXIT" || g.kind === "APPA") &&
+            reliableInside(input, g, evaluationNow),
+        );
+        if (portGateInside) {
+          gate = portGateInside;
+        }
       }
 
       if (!gate) {
@@ -411,22 +430,25 @@ export async function processPosition(
         outside = reliableOutside(input, gate, evaluationNow);
       const common = { lastGeofenceFixAt: fixAt };
       if (inside) {
+        const isPort = gate.kind === "PORT_EXIT" || gate.kind === "APPA";
+        const isDifferentGate = c.geofenceId && c.geofenceId !== gate.id;
+        const gateEnteredAt =
+          !c.gateEnteredAt || (isPort && isDifferentGate)
+            ? fixAt
+            : c.gateEnteredAt;
         await tx.container.update({
           where: { id: c.id },
           data: {
             ...common,
             exitCandidateAt: null,
-            gateEnteredAt: c.gateEnteredAt || fixAt,
-            ...((gate.kind === "PORT_EXIT" || gate.kind === "APPA") &&
-            c.status === "EM_TRANSITO"
-              ? { status: "CHEGADA_PORTAO" }
-              : {}),
+            gateEnteredAt,
+            ...(isPort ? { status: "CHEGADA_PORTAO", geofenceId: gate.id } : {}),
           },
         });
         const alreadyEntered = journeyEvents.some(
           (e) => e.geofenceId === gate.id && e.type === "ENTER",
         );
-        if (!c.gateEnteredAt && !alreadyEntered) {
+        if ((!c.gateEnteredAt || isDifferentGate) && !alreadyEntered) {
           await tx.geofenceEvent.upsert({
             where: {
               geofenceId_containerId_type: {

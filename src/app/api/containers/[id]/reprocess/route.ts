@@ -13,6 +13,12 @@ export async function POST(
   const { id } = await params;
 
   try {
+    const url = new URL(req.url);
+    const fromParam = url.searchParams.get("from");
+    const toParam = url.searchParams.get("to");
+    const fromDate = fromParam ? new Date(fromParam) : undefined;
+    const toDate = toParam ? new Date(toParam) : undefined;
+
     const container = await prisma.container.findUnique({
       where: { id },
       select: { id: true, driverId: true },
@@ -32,11 +38,17 @@ export async function POST(
     // Unsent notifications are discarded (they regenerate); already
     // accepted ones are kept as history.
     await prisma.$transaction(async (tx) => {
-      await tx.geofenceEvent.deleteMany({ where: { containerId: id } });
+      await tx.geofenceEvent.deleteMany({
+        where: {
+          containerId: id,
+          ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
+        },
+      });
       await tx.notification.deleteMany({
         where: {
           containerId: id,
           status: { in: ["PENDING", "FAILED", "UNCONFIGURED", "SENDING"] },
+          ...(fromDate ? { createdAt: { gte: fromDate } } : {}),
         },
       });
       await tx.container.update({
@@ -52,9 +64,20 @@ export async function POST(
 
     const driverId = container.driverId;
 
-    // Fetch all historical positions for this driver, oldest first
+    // Fetch historical positions for this driver, oldest first
     const positions = await prisma.position.findMany({
-      where: { driverId, source: "GLOBALSAT" },
+      where: {
+        driverId,
+        source: "GLOBALSAT",
+        ...(fromDate || toDate
+          ? {
+              recordedAt: {
+                ...(fromDate ? { gte: fromDate } : {}),
+                ...(toDate ? { lte: toDate } : {}),
+              },
+            }
+          : {}),
+      },
       orderBy: { recordedAt: "asc" },
       select: {
         latitude: true,
@@ -66,8 +89,9 @@ export async function POST(
     });
 
     let reprocessed = 0;
+    const outcomes: unknown[] = [];
     for (const pos of positions) {
-      await processPosition(
+      const outcome = await processPosition(
         {
           driverId,
           containerId: id,
@@ -78,10 +102,13 @@ export async function POST(
         },
         { source: "GLOBALSAT", replay: true },
       );
+      if (outcome && outcome.length > 0) {
+        outcomes.push(...outcome);
+      }
       reprocessed++;
     }
 
-    return NextResponse.json({ reprocessed, total: positions.length });
+    return NextResponse.json({ reprocessed, total: positions.length, outcomes });
   } catch (error) {
     return apiError(error);
   }

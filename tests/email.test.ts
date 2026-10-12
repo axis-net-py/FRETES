@@ -263,3 +263,92 @@ test("dispatch dispatches ops email even when WhatsApp is configured and active"
   assert.equal(result.status, "ACCEPTED");
   assert.equal(result.provider, "meta");
 });
+
+test("dispatch falls back to email when WhatsApp Meta fails with blocked access", async (t) => {
+  process.env.WHATSAPP_PROVIDER = "meta";
+  process.env.META_WHATSAPP_TOKEN = "fixture-token";
+  process.env.META_WHATSAPP_PHONE_NUMBER_ID = "123";
+  process.env.META_GRAPH_VERSION = "v22.0";
+  process.env.META_WHATSAPP_DEPARTURE_TEMPLATE = "frete_saida_porto_v2";
+  process.env.SMTP_HOST = "smtp.gmail.com";
+  process.env.SMTP_USER = "ops@example.com";
+  process.env.SMTP_PASS = "secret";
+  process.env.NOTIFICATION_EMAILS = "ops@example.com";
+
+  let opsEmailCount = 0;
+  // Meta returns error 400: API access blocked
+  const mockFetch = t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            message: "API access blocked",
+            type: "OAuthException",
+            code: 200,
+          },
+        }),
+        { status: 400 },
+      ),
+  );
+
+  const originalFind = prisma.notification.findUnique;
+  const originalUpdate = prisma.notification.update;
+  const originalUpdateMany = prisma.notification.updateMany;
+  const fixture = {
+    id: "n-wa-fallback",
+    status: "PENDING",
+    kind: "DEPARTURE",
+    to: "+595981111111",
+    parameters: JSON.stringify(["C", "SAIDA", "x", "D", "E", "L"]),
+    container: {
+      code: "MSNU6732375",
+      origin: "Porto de Santos",
+      destination: "HERNANDARIAS - PY",
+      departedAt: new Date("2026-10-09T18:35:00Z"),
+      truckPlate: "AAME593",
+      trailerPlate: "AASV276",
+      client: { name: "COTRIPAR", consent: true },
+      driver: { name: "LEONARDO GALVALISIS" },
+    },
+  };
+
+  prisma.notification.findUnique = (async () => fixture) as unknown as typeof originalFind;
+  prisma.notification.updateMany = (async () => ({ count: 1 })) as unknown as typeof originalUpdateMany;
+  prisma.notification.update = (async ({ data }: { data: object }) => ({
+    ...fixture,
+    ...data,
+  })) as unknown as typeof originalUpdate;
+
+  t.after(() => {
+    mockFetch.mock.restore();
+    prisma.notification.findUnique = originalFind;
+    prisma.notification.update = originalUpdate;
+    prisma.notification.updateMany = originalUpdateMany;
+    delete process.env.WHATSAPP_PROVIDER;
+    delete process.env.META_WHATSAPP_TOKEN;
+    delete process.env.META_WHATSAPP_PHONE_NUMBER_ID;
+    delete process.env.META_GRAPH_VERSION;
+    delete process.env.META_WHATSAPP_DEPARTURE_TEMPLATE;
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_USER;
+    delete process.env.SMTP_PASS;
+    delete process.env.NOTIFICATION_EMAILS;
+  });
+
+  const result = (await dispatchNotification("n-wa-fallback", {
+    mailTransport: {
+      sendMail: async () => {
+        opsEmailCount++;
+        return { messageId: "<ops-fallback>" };
+      },
+    },
+  })) as { status: string; provider: string; providerRef: string };
+
+  assert.ok(opsEmailCount >= 1, "Email must be dispatched on WhatsApp failure");
+  assert.equal(result.status, "ACCEPTED");
+  assert.equal(result.provider, "email");
+  assert.equal(result.providerRef, "<ops-fallback>");
+});
+

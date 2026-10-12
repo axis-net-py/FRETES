@@ -129,8 +129,23 @@ export async function dispatchNotification(
     !!template &&
     !!version;
   const opsList = whatsappOpsNumbers();
-  if (metaReady && (n.container.client.consent || opsList.length > 0))
-    return dispatchWhatsApp(n, { token: token!, phone: phone!, version: version!, template: template! });
+  if (metaReady && (n.container.client.consent || opsList.length > 0)) {
+    const waResult = await dispatchWhatsApp(n, {
+      token: token!,
+      phone: phone!,
+      version: version!,
+      template: template!,
+    });
+    if (waResult.status === "ACCEPTED") return waResult;
+    // If WhatsApp failed, immediately fall back to email dispatch
+    if (emailConfig) {
+      console.warn(
+        `[notifications] WhatsApp dispatch failed (${waResult.error}), falling back to email dispatch`,
+      );
+      return dispatchEmail(n, emailConfig, deps.mailTransport);
+    }
+    return waResult;
+  }
   if (emailConfig) return dispatchEmail(n, emailConfig, deps.mailTransport);
   if (!n.container.client.consent && !opsList.length)
     return prisma.notification.update({

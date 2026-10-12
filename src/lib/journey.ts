@@ -98,26 +98,24 @@ export function journeyGatesFor<T extends JourneyGate>(
   const isSantos = Boolean(origin && origin.toUpperCase().includes("SANTOS"));
   let prioritizedPort: T | undefined;
 
-  if (geofenceId) {
+  if (isSantos) {
+    prioritizedPort =
+      portGates.find((g) => (g.name || "").toUpperCase().includes("SANTOS")) ||
+      portGates.find((g) => g.kind === wanted) ||
+      portGates[0];
+  } else if (geofenceId) {
     prioritizedPort = portGates.find((g) => g.id === geofenceId);
   }
 
   if (!prioritizedPort) {
-    if (isSantos) {
-      prioritizedPort =
-        portGates.find((g) => (g.name || "").toUpperCase().includes("SANTOS")) ||
-        portGates.find((g) => g.kind === wanted) ||
-        portGates[0];
-    } else {
-      // Paranaguá (default or explicit)
-      const nonSantosPortGates = portGates.filter(
-        (g) => !(g.name || "").toUpperCase().includes("SANTOS"),
-      );
-      const candidatePorts =
-        nonSantosPortGates.length > 0 ? nonSantosPortGates : portGates;
-      prioritizedPort =
-        candidatePorts.find((g) => g.kind === wanted) || candidatePorts[0];
-    }
+    // Paranaguá (default or explicit)
+    const nonSantosPortGates = portGates.filter(
+      (g) => !(g.name || "").toUpperCase().includes("SANTOS"),
+    );
+    const candidatePorts =
+      nonSantosPortGates.length > 0 ? nonSantosPortGates : portGates;
+    prioritizedPort =
+      candidatePorts.find((g) => g.kind === wanted) || candidatePorts[0];
   }
 
   const matchingDestination = destinationGates[0];
